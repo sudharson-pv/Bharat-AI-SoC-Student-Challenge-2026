@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- LearnMate AI Security: Prohibit all cleartext (HTTP) traffic -->
+    <!-- Only system-installed Certificate Authorities are trusted for HTTPS downloads -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+

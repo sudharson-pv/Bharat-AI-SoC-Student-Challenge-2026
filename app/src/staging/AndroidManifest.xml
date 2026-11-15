@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- LearnMate AI Staging: Optional network permissions for Google Sign-In & On-Demand Content Packs -->
+    <!-- Invariant: Core learning operations (reading, notes, diagnostics, AI tutor) remain 100% offline-first -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+</manifest>
+

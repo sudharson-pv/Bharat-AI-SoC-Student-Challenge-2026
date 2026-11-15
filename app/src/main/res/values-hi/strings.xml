@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LearnMate AI</string>
+    <string name="tagline">डिवाइस पर चलने वाला व्यक्तिगत शिक्षण सहायक</string>
+    <string name="competition_tag">100% ऑफ़लाइन • सार्वभौमिक शिक्षा • शून्य क्लाउड निर्भरता</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">होम</string>
+    <string name="nav_learn">सीखें</string>
+    <string name="nav_settings">सेटिंग्स</string>
+    <string name="nav_language">भाषा</string>
+
+    <!-- Home Screen -->
+    <string name="welcome_title">LearnMate AI में आपका स्वागत है</string>
+    <string name="welcome_subtitle">व्यक्तिगत सीखने और कौशल विकास के लिए आपका निजी, ऑन-डिवाइस AI साथी।</string>
+    <string name="card_architecture_title">ऑन-डिवाइस आर्किटेक्चर</string>
+    <string name="card_architecture_desc">आपके फ़ोन के MediaTek Dimensity 7020 SoC पर पूरी तरह से ऑफ़लाइन चलता है। शून्य क्लाउड निर्भरता, 100% सुरक्षित।</string>
+    <string name="card_domains_title">25+ करियर डोमेन</string>
+    <string name="card_domains_desc">VLSI और एम्बेडेड सिस्टम से लेकर चिकित्सा, कंप्यूटर विज्ञान और व्यवसाय तक।</string>
+    <string name="btn_select_language">भाषा चुनें</string>
+    <string name="btn_open_settings">सेटिंग्स खोलें</string>
+    <string name="status_offline">100% ऑफ़लाइन | कोई क्लाउड निर्भरता नहीं</string>
+
+    <!-- Language Selection Screen -->
+    <string name="language_title">अपनी भाषा चुनें</string>
+    <string name="language_subtitle">इंटरफ़ेस के लिए पसंदीदा भाषा चुनें। आपकी सीखने की प्रगति हमेशा सुरक्षित रहती है।</string>
+    <string name="lang_en">English (अंग्रेज़ी)</string>
+    <string name="lang_ta">தமிழ் (तमिल)</string>
+    <string name="lang_hi">हिन्दी (Hindi)</string>
+    <string name="lang_kn">ಕನ್ನಡ (कन्नड़)</string>
+    <string name="btn_save_language">सहेजें और आगे बढ़ें</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="section_language">भाषा और स्थानीयकरण</string>
+    <string name="current_language">सक्रिय इंटरफ़ेस भाषा</string>
+    <string name="section_theme">दिखावट</string>
+    <string name="theme_light">लाइट थीम (पाठ्यक्रम मोड)</string>
+    <string name="theme_dark">AI फ़ोकस मोड (डार्क थीम)</string>
+    <string name="theme_system">सिस्टम अनुसार</string>
+    <string name="section_device_info">हार्डवेयर प्लेटफ़ॉर्म</string>
+    <string name="target_soc">SoC: MediaTek Dimensity 7020</string>
+    <string name="target_device">लक्ष्य: Motorola Moto G54 5G (arm64-v8a)</string>
+    <string name="runtime_status">रनटाइम: ExecuTorch 1.4.0 (सत्यापन लंबित)</string>
+    <!-- Gate 4 Onboarding -->
+    <string name="onboarding_title">अपनी सीखने की यात्रा को व्यक्तिगत बनाएं</string>
+    <string name="onboarding_subtitle">एक सटीक रोडमैप और दैनिक अध्ययन योजना प्राप्त करने के लिए अपनी प्रोफ़ाइल सेट करें।</string>
+    <string name="label_learner_name">शिक्षार्थी का नाम</string>
+    <string name="label_education_level">शैक्षणिक स्तर</string>
+    <string name="label_current_level">वर्तमान ज्ञान स्तर</string>
+    <string name="label_target_domain">लक्ष्य डोमेन</string>
+    <string name="label_subdomain">विशेषज्ञता / फोकस क्षेत्र</string>
+    <string name="label_goal">मुख्य सीखने का लक्ष्य</string>
+    <string name="label_target_role">लक्ष्य करियर भूमिका</string>
+    <string name="label_daily_minutes">दैनिक अध्ययन समय</string>
+    <string name="label_weekly_days">अध्ययन दिवस प्रति सप्ताह</string>
+    <string name="btn_start_assessment">प्रोफ़ाइल सहेजें और मूल्यांकन शुरू करें</string>
+
+    <!-- Gate 4 Diagnostic Assessment -->
+    <string name="assessment_title">नैदानिक मूल्यांकन</string>
+    <string name="assessment_subtitle">कौशल कमियों की पहचान करने के लिए मूलभूत प्रश्नों के उत्तर दें।</string>
+    <string name="assessment_question_counter">प्रश्न %1$d / %2$d</string>
+    <string name="btn_prev_question">पिछला</string>
+    <string name="btn_next_question">अगला</string>
+    <string name="btn_submit_assessment">मूल्यांकन सबमिट करें</string>
+
+    <!-- Gate 4 Skill-Gap Dashboard -->
+    <string name="skill_gap_title">कौशल-अंतर विश्लेषण</string>
+    <string name="skill_gap_overall_score">तैयारी स्कोर</string>
+    <string name="skill_gap_strengths">सत्यापित ताकतें</string>
+    <string name="skill_gap_weaknesses">पहचानी गई ज्ञान कमियां</string>
+    <string name="skill_gap_priority_gaps">प्राथमिकता अंतर विवरण</string>
+    <string name="btn_view_roadmap">व्यक्तिगत रोडमैप देखें</string>
+
+    <!-- Gate 4 Personalised Roadmap -->
+    <string name="roadmap_title">व्यक्तिगत शिक्षण रोडमैप</string>
+    <string name="roadmap_subtitle">पहचानी गई कमियों और पूर्व-आवश्यकताओं को लक्षित करने वाले चरण।</string>
+    <string name="roadmap_tag_gap">प्राथमिकता सुधार</string>
+    <string name="roadmap_tag_core">मूल योग्यता</string>
+    <string name="roadmap_details_title">विषय विवरण और पाठ्यपुस्तक संदर्भ</string>
+    <string name="roadmap_btn_ask_tutor">इसके बारे में AI ट्यूटर से पूछें</string>
+    <string name="label_prerequisites">आवश्यक पूर्वज्ञान</string>
+    <string name="label_textbook_citation">मान्यता प्राप्त संदर्भ</string>
+
+    <!-- Gate 4 Daily Study Plan -->
+    <string name="study_plan_title">दैनिक अध्ययन योजना</string>
+    <string name="study_plan_subtitle">सक्रिय रोडमैप से तैयार किए गए आज के अध्ययन कार्य।</string>
+    <string name="study_plan_progress">आज की प्रगति</string>
+    <string name="study_plan_empty">अभी तक कोई अध्ययन कार्य निर्धारित नहीं है। योजना बनाने के लिए मूल्यांकन लें।</string>
+
+    <!-- Gate 4 AI Tutor Interface -->
+    <string name="ai_tutor_title">LearnMate AI ट्यूटर</string>
+    <string name="ai_tutor_subtitle">सत्यापित पाठ्यपुस्तकों के साथ ऑन-डिवाइस 1B Llama मॉडल।</string>
+    <string name="ai_tutor_disclaimer">सूचना: AI द्वारा उत्पन्न मार्गदर्शन वैचारिक अध्ययन के लिए है और पाठ्यपुस्तकों के साथ सत्यापित किया जाना चाहिए।</string>
+    <string name="ai_tutor_verified_textbook_banner">सत्यापित पाठ्यपुस्तक मोड: उत्पादन नीति द्वारा AI निर्माण अक्षम है। सभी स्पष्टीकरण सीधे मान्यता प्राप्त पाठ्यपुस्तकों से प्राप्त किए जाते हैं।</string>
+    <string name="ai_tutor_verified_textbook_notice">सत्यापित पाठ्यपुस्तक मोड: ऑफ़लाइन संदर्भ</string>
+    <string name="ai_tutor_tag_ai">AI द्वारा निर्मित (Llama 3.2 1B)</string>
+    <string name="ai_tutor_tag_curriculum">सत्यापित पाठ्यपुस्तक संदर्भ</string>
+    <string name="ai_tutor_input_placeholder">कोई वैचारिक प्रश्न पूछें...</string>
+    <string name="ai_tutor_switch_label">ऑन-डिवाइस AI सक्रिय</string>
+    <string name="btn_send">भेजें</string>
+
+    <!-- Gate 4 Home Dashboard -->
+    <string name="home_greeting">नमस्ते, %1$s!</string>
+    <string name="home_goal_prefix">लक्ष्य: </string>
+    <string name="home_action_roadmap">रोडमैप</string>
+    <string name="home_action_study_plan">अध्ययन योजना</string>
+    <string name="home_action_skill_gap">कौशल अंतर</string>
+    <string name="home_action_tutor">AI ट्यूटर</string>
+    <string name="home_card_assessment_prompt_title">नैदानिक मूल्यांकन तैयार</string>
+    <string name="home_card_assessment_prompt_desc">कस्टम रोडमैप और अध्ययन कार्यों को अनलॉक करने के लिए मूल्यांकन पूरा करें।</string>
+    <string name="home_btn_take_assessment">मूल्यांकन शुरू करें</string>
+    <string name="home_btn_start_onboarding">प्रोफ़ाइल सेट करें</string>
+    <string name="home_section_modules">अध्ययन मॉड्यूल</string>
+    <string name="home_section_today_plan">आज की अध्ययन योजना</string>
+    <string name="home_section_active_roadmap">सक्रिय रोडमैप चरण</string>
+
+    <!-- Gate 6.0 Universal Multi-Track & Curriculum Explorer -->
+    <string name="track_dashboard_title">मेरे अध्ययन ट्रैक</string>
+    <string name="track_dashboard_subtitle">अकादमिक, प्रतियोगी परीक्षा और शोध डोमेन में कई अध्ययन ट्रैक प्रबंधित करें।</string>
+    <string name="track_active_badge">सक्रिय ट्रैक</string>
+    <string name="track_btn_switch">इस ट्रैक पर जाएं</string>
+    <string name="track_btn_new">नया अध्ययन ट्रैक जोड़ें</string>
+    <string name="track_btn_browse_curriculum">पाठ्यक्रम एक्सप्लोरर</string>
+    <string name="track_mode_academic">अकादमिक शिक्षा</string>
+    <string name="track_mode_competitive">प्रतियोगी परीक्षा तैयारी</string>
+    <string name="track_mode_research">शोध और विद्वान मोड</string>
+    <string name="track_mode_skills">व्यावसायिक कौशल</string>
+    <string name="track_commitment_format">%1$d मिनट/दिन</string>
+    <string name="track_create_title">नया अध्ययन ट्रैक बनाएं</string>
+    <string name="track_create_label_title">ट्रैक शीर्षक</string>
+    <string name="track_create_label_category">शिक्षार्थी श्रेणी</string>
+    <string name="track_create_label_mode">सीखने का मोड</string>
+    <string name="track_create_label_discipline">लक्ष्य अनुशासन / डोमेन</string>
+    <string name="track_create_label_exam">लक्ष्य परीक्षा का नाम (वैकल्पिक)</string>
+    <string name="track_create_btn_confirm">ट्रैक बनाएं और सक्रिय करें</string>
+    <string name="curriculum_browser_title">सार्वभौमिक पाठ्यक्रम एक्सप्लोरर</string>
+    <string name="curriculum_browser_subtitle">स्कूल विज्ञान, प्रबंधन, सिविल सेवा, अनुसंधान और इंजीनियरिंग में शुरुआती संग्रहों का अन्वेषण करें।</string>
+    <string name="curriculum_tag_discipline">अनुशासन</string>
+    <string name="curriculum_tag_course">कोर्स / विषय</string>
+    <string name="curriculum_tag_topic">विषय बिंदु</string>
+    <string name="curriculum_btn_create_track">इस डोमेन में ट्रैक शुरू करें</string>
+    <string name="profile_title">सार्वभौमिक शिक्षार्थी प्रोफ़ाइल</string>
+    <string name="label_learner_category">शिक्षार्थी श्रेणी</string>
+    <string name="label_education_level_title">शिक्षा का स्तर</string>
+    <string name="label_ui_language">इंटरफ़ेस भाषा</string>
+    <string name="label_content_language">पाठ्यक्रम सामग्री भाषा</string>
+    <string name="label_minor_consent">अभिभावक सहमति घोषणा (स्थिति: सत्यापन लंबित; प्रोफाइलिंग अक्षम)</string>
+    <string name="btn_save_profile">प्रोफ़ाइल परिवर्तन सहेजें</string>
+
+    <!-- Gate 6.4 Universal Learning Journeys & Modules -->
+    <string name="learning_module_title">अध्ययन मॉड्यूल</string>
+    <string name="learning_module_objectives">सीखने के उद्देश्य</string>
+    <string name="learning_module_prerequisites">आवश्यक पूर्वापेक्षाएँ</string>
+    <string name="learning_module_diagrams">दृश्य आरेख और योजनाएँ</string>
+    <string name="learning_module_worked_examples">हल किए गए उदाहरण</string>
+    <string name="learning_module_glossary">मुख्य शब्द और परिभाषाएँ</string>
+    <string name="learning_module_references">सत्यापित पाठ्यपुस्तक संदर्भ</string>
+    <string name="learning_module_knowledge_check">ज्ञान सत्यापन परीक्षा</string>
+    <string name="learning_module_check_answer">उत्तर जाँचें</string>
+    <string name="learning_module_retry">पुनः प्रयास करें</string>
+    <string name="learning_module_mark_completed">पूर्ण के रूप में चिह्नित करें</string>
+    <string name="learning_module_status_completed">पूर्ण हुआ</string>
+    <string name="learning_module_status_in_progress">प्रगति पर है</string>
+    <string name="learning_module_status_needs_revision">पुनरीक्षण आवश्यक है</string>
+    <string name="learning_module_status_not_started">शुरू नहीं हुआ</string>
+    <string name="learning_module_btn_prev">पिछला विषय</string>
+    <string name="learning_module_btn_next">अगला विषय</string>
+    <string name="learning_module_starter_notice">प्रारंभिक मॉड्यूल: सत्यापित संदर्भों पर आधारित। संपूर्ण पाठ्यक्रम का प्रतिनिधित्व नहीं करता।</string>
+    <string name="btn_navigate_back">वापस जाएं</string>
+
+    <!-- Gate 6.11 UX, Accessibility & Data Lifecycle -->
+    <string name="btn_cancel">रद्द करें</string>
+    <string name="btn_close">बंद करें</string>
+    <string name="content_packs_title">पाठ्यक्रम पैक</string>
+    <string name="label_minor_learner">नाबालिग शिक्षार्थी (18 वर्ष से कम)</string>
+    <string name="label_daily_commitment">दैनिक अध्ययन प्रतिबद्धता: %1$d मिनट/दिन</string>
+    <string name="msg_profile_saved">प्रोफ़ाइल सफलतापूर्वक अपडेट की गई!</string>
+    <string name="curriculum_english_fallback_notice">अंग्रेज़ी स्रोत: इस विषय का क्षेत्रीय अनुवाद विकासाधीन है। मान्यता प्राप्त अंग्रेज़ी पाठ्यक्रम प्रदर्शित किया जा रहा है।</string>
+
+    <!-- Data Lifecycle & Backup/Restore -->
+    <string name="section_data_lifecycle">डेटा संप्रभुता और जीवनचक्र</string>
+    <string name="backup_title">एन्क्रिप्टेड स्थानीय बैकअप</string>
+    <string name="backup_desc">अपने पासफ़्रेज़ से सुरक्षित AES-256-GCM एन्क्रिप्टेड बैकअप (.lmbackup) बनाएं।</string>
+    <string name="btn_create_backup">एन्क्रिप्टेड बैकअप बनाएं</string>
+    <string name="restore_title">शिक्षार्थी डेटा पुनर्स्थापित करें</string>
+    <string name="restore_desc">वैध .lmbackup फ़ाइल से अपनी प्रोफ़ाइल, ट्रैक और मूल्यांकन इतिहास पुनर्प्राप्त करें।</string>
+    <string name="btn_restore_backup">बैकअप से पुनर्स्थापित करें</string>
+    <string name="restore_passphrase_prompt">पासफ़्रेज़</string>
+    <string name="restore_overwrite_warning">इस बैकअप को पुनर्स्थापित करने से वर्तमान शिक्षार्थी डेटा बदल जाएगा। इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="btn_confirm_restore">पुनर्स्थापित करें और बदलें</string>
+    <string name="export_data_title">डेटा पोर्टेबिलिटी</string>
+    <string name="export_data_desc">अपने संपूर्ण शिक्षण रिकॉर्ड को JSON या Markdown प्रारूप में निर्यात करें।</string>
+    <string name="btn_export_json">JSON डेटा निर्यात करें</string>
+    <string name="btn_export_markdown">अध्ययन सारांश (MD) निर्यात करें</string>
+    <string name="privacy_disclosure_title">गोपनीयता और भंडारण संरचना</string>
+    <string name="privacy_disclosure_desc">स्थानीय भंडारण सूची, क्रिप्टोग्राफ़िक पैरामीटर और वैधानिक नोटिस देखें।</string>
+    <string name="btn_view_privacy_disclosure">गोपनीयता प्रकटीकरण देखें</string>
+    <string name="delete_track_title">लर्निंग ट्रैक हटाएं</string>
+    <string name="delete_track_confirm">क्या आप वाकई इस ट्रैक को हटाना चाहते हैं? सभी संबंधित प्रगति और प्रश्नोत्तरी प्रयास स्थायी रूप से मिटा दिए जाएंगे। स्थापित पाठ्यक्रम पैक सुरक्षित रहेंगे।</string>
+    <string name="btn_delete_track">ट्रैक हटाएं</string>
+    <string name="profile_reset_title">स्थानीय डेटा मिटाएं</string>
+    <string name="profile_reset_desc">इस उपकरण से अपनी प्रोफ़ाइल और सभी शिक्षण रिकॉर्ड हटाएं। स्थापित पाठ्यक्रम पैक सुरक्षित रहेंगे।</string>
+    <string name="btn_delete_profile">शिक्षार्थी प्रोफ़ाइल हटाएं</string>
+
+    <!-- Accessibility Labels -->
+    <string name="a11y_task_completed">कार्य पूर्ण हुआ</string>
+    <string name="a11y_task_incomplete">कार्य अपूर्ण है</string>
+    <string name="a11y_progress_percent">%1$d प्रतिशत पूर्ण</string>
+    <string name="a11y_track_active">वर्तमान में सक्रिय ट्रैक</string>
+    <string name="a11y_track_inactive">निष्क्रिय ट्रैक</string>
+</resources>
+

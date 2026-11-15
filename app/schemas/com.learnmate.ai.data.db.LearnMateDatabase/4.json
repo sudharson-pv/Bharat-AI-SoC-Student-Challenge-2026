@@ -1,0 +1,1807 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "787442109c1cdf80f01c892e47261678",
+    "entities": [
+      {
+        "tableName": "learner_profiles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userId` TEXT NOT NULL, `name` TEXT NOT NULL, `targetDomain` TEXT NOT NULL, `subdomain` TEXT NOT NULL, `goal` TEXT NOT NULL, `targetRole` TEXT NOT NULL, `previousExperience` TEXT NOT NULL, `currentLevel` TEXT NOT NULL, `audienceLevel` TEXT NOT NULL, `dailyStudyMinutes` INTEGER NOT NULL, `weeklyStudyDays` INTEGER NOT NULL, `currentTopic` TEXT NOT NULL, `onboardingCompleted` INTEGER NOT NULL, `assessmentCompleted` INTEGER NOT NULL, `isDemoAccount` INTEGER NOT NULL, `preferredLanguageCode` TEXT NOT NULL DEFAULT 'en', `defaultEducationLevel` TEXT NOT NULL DEFAULT 'UNDERGRADUATE', `defaultLearnerCategory` TEXT NOT NULL DEFAULT 'COLLEGE_STUDENT', `isMinor` INTEGER NOT NULL DEFAULT 0, `guardianConsentGiven` INTEGER NOT NULL DEFAULT 0, `createdAtEpochMs` INTEGER NOT NULL, `updatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`userId`))",
+        "fields": [
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetDomain",
+            "columnName": "targetDomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subdomain",
+            "columnName": "subdomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "goal",
+            "columnName": "goal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetRole",
+            "columnName": "targetRole",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousExperience",
+            "columnName": "previousExperience",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentLevel",
+            "columnName": "currentLevel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audienceLevel",
+            "columnName": "audienceLevel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyStudyMinutes",
+            "columnName": "dailyStudyMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weeklyStudyDays",
+            "columnName": "weeklyStudyDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentTopic",
+            "columnName": "currentTopic",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "onboardingCompleted",
+            "columnName": "onboardingCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assessmentCompleted",
+            "columnName": "assessmentCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDemoAccount",
+            "columnName": "isDemoAccount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preferredLanguageCode",
+            "columnName": "preferredLanguageCode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'en'"
+          },
+          {
+            "fieldPath": "defaultEducationLevel",
+            "columnName": "defaultEducationLevel",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'UNDERGRADUATE'"
+          },
+          {
+            "fieldPath": "defaultLearnerCategory",
+            "columnName": "defaultLearnerCategory",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'COLLEGE_STUDENT'"
+          },
+          {
+            "fieldPath": "isMinor",
+            "columnName": "isMinor",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "guardianConsentGiven",
+            "columnName": "guardianConsentGiven",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMs",
+            "columnName": "updatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "content_packs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packId` TEXT NOT NULL, `title` TEXT NOT NULL, `version` TEXT NOT NULL, `minAppVersion` TEXT NOT NULL, `category` TEXT NOT NULL, `primaryLanguage` TEXT NOT NULL DEFAULT 'en', `supportedLanguagesJson` TEXT NOT NULL DEFAULT '[\"en\"]', `authorOrProvider` TEXT NOT NULL, `provenanceNotice` TEXT NOT NULL, `checksumSha256` TEXT NOT NULL, `isInstalled` INTEGER NOT NULL DEFAULT 1, `isBuiltIn` INTEGER NOT NULL DEFAULT 0, `isDeprecated` INTEGER NOT NULL DEFAULT 0, `deprecationNotice` TEXT, `installedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`packId`))",
+        "fields": [
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minAppVersion",
+            "columnName": "minAppVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "primaryLanguage",
+            "columnName": "primaryLanguage",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'en'"
+          },
+          {
+            "fieldPath": "supportedLanguagesJson",
+            "columnName": "supportedLanguagesJson",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'[\"en\"]'"
+          },
+          {
+            "fieldPath": "authorOrProvider",
+            "columnName": "authorOrProvider",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "provenanceNotice",
+            "columnName": "provenanceNotice",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checksumSha256",
+            "columnName": "checksumSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isInstalled",
+            "columnName": "isInstalled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "isBuiltIn",
+            "columnName": "isBuiltIn",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isDeprecated",
+            "columnName": "isDeprecated",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "deprecationNotice",
+            "columnName": "deprecationNotice",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "installedAtEpochMs",
+            "columnName": "installedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "pack_dependencies",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packId` TEXT NOT NULL, `dependencyPackId` TEXT NOT NULL, `versionConstraint` TEXT NOT NULL, PRIMARY KEY(`packId`, `dependencyPackId`), FOREIGN KEY(`packId`) REFERENCES `content_packs`(`packId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`dependencyPackId`) REFERENCES `content_packs`(`packId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dependencyPackId",
+            "columnName": "dependencyPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "versionConstraint",
+            "columnName": "versionConstraint",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packId",
+            "dependencyPackId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_pack_dependencies_dependencyPackId",
+            "unique": false,
+            "columnNames": [
+              "dependencyPackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pack_dependencies_dependencyPackId` ON `${TABLE_NAME}` (`dependencyPackId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "content_packs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "packId"
+            ],
+            "referencedColumns": [
+              "packId"
+            ]
+          },
+          {
+            "table": "content_packs",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "dependencyPackId"
+            ],
+            "referencedColumns": [
+              "packId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "curriculum_nodes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`nodeId` TEXT NOT NULL, `parentNodeId` TEXT, `packId` TEXT NOT NULL, `nodeType` TEXT NOT NULL, `code` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL DEFAULT '', `estimatedMinutes` INTEGER NOT NULL DEFAULT 30, `orderIndex` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`nodeId`), FOREIGN KEY(`packId`) REFERENCES `content_packs`(`packId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`parentNodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "nodeId",
+            "columnName": "nodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentNodeId",
+            "columnName": "parentNodeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nodeType",
+            "columnName": "nodeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "estimatedMinutes",
+            "columnName": "estimatedMinutes",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "30"
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "orderIndex",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "nodeId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_curriculum_nodes_parentNodeId",
+            "unique": false,
+            "columnNames": [
+              "parentNodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_curriculum_nodes_parentNodeId` ON `${TABLE_NAME}` (`parentNodeId`)"
+          },
+          {
+            "name": "index_curriculum_nodes_packId",
+            "unique": false,
+            "columnNames": [
+              "packId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_curriculum_nodes_packId` ON `${TABLE_NAME}` (`packId`)"
+          },
+          {
+            "name": "index_curriculum_nodes_type",
+            "unique": false,
+            "columnNames": [
+              "nodeType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_curriculum_nodes_type` ON `${TABLE_NAME}` (`nodeType`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "content_packs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "packId"
+            ],
+            "referencedColumns": [
+              "packId"
+            ]
+          },
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "parentNodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "learner_tracks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackId` TEXT NOT NULL, `userId` TEXT NOT NULL, `title` TEXT NOT NULL, `learningMode` TEXT NOT NULL DEFAULT 'ACADEMIC', `targetCurriculumNodeId` TEXT, `targetExamName` TEXT, `targetExamDateEpochMs` INTEGER, `dailyCommitmentMinutes` INTEGER NOT NULL DEFAULT 60, `isTrackActive` INTEGER NOT NULL DEFAULT 1, `createdAtEpochMs` INTEGER NOT NULL, `lastAccessedEpochMs` INTEGER NOT NULL, PRIMARY KEY(`trackId`), FOREIGN KEY(`userId`) REFERENCES `learner_profiles`(`userId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`targetCurriculumNodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "learningMode",
+            "columnName": "learningMode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'ACADEMIC'"
+          },
+          {
+            "fieldPath": "targetCurriculumNodeId",
+            "columnName": "targetCurriculumNodeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "targetExamName",
+            "columnName": "targetExamName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "targetExamDateEpochMs",
+            "columnName": "targetExamDateEpochMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "dailyCommitmentMinutes",
+            "columnName": "dailyCommitmentMinutes",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "60"
+          },
+          {
+            "fieldPath": "isTrackActive",
+            "columnName": "isTrackActive",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAccessedEpochMs",
+            "columnName": "lastAccessedEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "trackId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_learner_tracks_userId",
+            "unique": false,
+            "columnNames": [
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_learner_tracks_userId` ON `${TABLE_NAME}` (`userId`)"
+          },
+          {
+            "name": "index_learner_tracks_active",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "isTrackActive"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_learner_tracks_active` ON `${TABLE_NAME}` (`userId`, `isTrackActive`)"
+          },
+          {
+            "name": "index_learner_tracks_targetNode",
+            "unique": false,
+            "columnNames": [
+              "targetCurriculumNodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_learner_tracks_targetNode` ON `${TABLE_NAME}` (`targetCurriculumNodeId`)"
+          },
+          {
+            "name": "index_learner_tracks_trackId_userId",
+            "unique": true,
+            "columnNames": [
+              "trackId",
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_learner_tracks_trackId_userId` ON `${TABLE_NAME}` (`trackId`, `userId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "learner_profiles",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "userId"
+            ],
+            "referencedColumns": [
+              "userId"
+            ]
+          },
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "targetCurriculumNodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "node_prerequisites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`prerequisiteId` TEXT NOT NULL, `targetNodeId` TEXT NOT NULL, `requiredNodeId` TEXT NOT NULL, `requirementType` TEXT NOT NULL DEFAULT 'MANDATORY', PRIMARY KEY(`prerequisiteId`), FOREIGN KEY(`targetNodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`requiredNodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "prerequisiteId",
+            "columnName": "prerequisiteId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetNodeId",
+            "columnName": "targetNodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredNodeId",
+            "columnName": "requiredNodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requirementType",
+            "columnName": "requirementType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'MANDATORY'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "prerequisiteId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_prereqs_target",
+            "unique": false,
+            "columnNames": [
+              "targetNodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_prereqs_target` ON `${TABLE_NAME}` (`targetNodeId`)"
+          },
+          {
+            "name": "index_prereqs_required",
+            "unique": false,
+            "columnNames": [
+              "requiredNodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_prereqs_required` ON `${TABLE_NAME}` (`requiredNodeId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "targetNodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          },
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "requiredNodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "curriculum_resources",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`resourceId` TEXT NOT NULL, `nodeId` TEXT NOT NULL, `languageCode` TEXT NOT NULL DEFAULT 'en', `verifiedExplanation` TEXT NOT NULL, `referenceTitle` TEXT NOT NULL, `referenceAuthor` TEXT NOT NULL, `referenceEdition` TEXT NOT NULL, `referenceChapter` TEXT NOT NULL, `referenceSection` TEXT NOT NULL, `referenceIdentifier` TEXT NOT NULL, `coreKeywordsJson` TEXT NOT NULL DEFAULT '[]', PRIMARY KEY(`resourceId`), FOREIGN KEY(`nodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "resourceId",
+            "columnName": "resourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nodeId",
+            "columnName": "nodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "languageCode",
+            "columnName": "languageCode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'en'"
+          },
+          {
+            "fieldPath": "verifiedExplanation",
+            "columnName": "verifiedExplanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceTitle",
+            "columnName": "referenceTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceAuthor",
+            "columnName": "referenceAuthor",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceEdition",
+            "columnName": "referenceEdition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceChapter",
+            "columnName": "referenceChapter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceSection",
+            "columnName": "referenceSection",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceIdentifier",
+            "columnName": "referenceIdentifier",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coreKeywordsJson",
+            "columnName": "coreKeywordsJson",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'[]'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "resourceId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_curriculum_resources_nodeId",
+            "unique": false,
+            "columnNames": [
+              "nodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_curriculum_resources_nodeId` ON `${TABLE_NAME}` (`nodeId`)"
+          },
+          {
+            "name": "index_curriculum_resources_lang",
+            "unique": false,
+            "columnNames": [
+              "nodeId",
+              "languageCode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_curriculum_resources_lang` ON `${TABLE_NAME}` (`nodeId`, `languageCode`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "nodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "assessment_blueprints",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`blueprintId` TEXT NOT NULL, `title` TEXT NOT NULL, `assessmentType` TEXT NOT NULL, `targetNodeId` TEXT NOT NULL, `totalQuestions` INTEGER NOT NULL, `timeLimitMinutes` INTEGER, `marksPerCorrect` REAL NOT NULL DEFAULT 1.0, `negativeMarksPerIncorrect` REAL NOT NULL DEFAULT 0.0, `passPercentageThreshold` REAL NOT NULL DEFAULT 50.0, `allowNegativeTotal` INTEGER NOT NULL DEFAULT 0, `shuffleQuestions` INTEGER NOT NULL DEFAULT 1, `immediateFeedback` INTEGER NOT NULL DEFAULT 0, `scoringSchemeVersion` TEXT NOT NULL DEFAULT '2.0', PRIMARY KEY(`blueprintId`))",
+        "fields": [
+          {
+            "fieldPath": "blueprintId",
+            "columnName": "blueprintId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assessmentType",
+            "columnName": "assessmentType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetNodeId",
+            "columnName": "targetNodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalQuestions",
+            "columnName": "totalQuestions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeLimitMinutes",
+            "columnName": "timeLimitMinutes",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "marksPerCorrect",
+            "columnName": "marksPerCorrect",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "1.0"
+          },
+          {
+            "fieldPath": "negativeMarksPerIncorrect",
+            "columnName": "negativeMarksPerIncorrect",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "0.0"
+          },
+          {
+            "fieldPath": "passPercentageThreshold",
+            "columnName": "passPercentageThreshold",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "50.0"
+          },
+          {
+            "fieldPath": "allowNegativeTotal",
+            "columnName": "allowNegativeTotal",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "shuffleQuestions",
+            "columnName": "shuffleQuestions",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "immediateFeedback",
+            "columnName": "immediateFeedback",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "scoringSchemeVersion",
+            "columnName": "scoringSchemeVersion",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'2.0'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "blueprintId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "assessment_questions_v2",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`questionId` TEXT NOT NULL, `nodeId` TEXT NOT NULL, `blueprintId` TEXT, `sectionName` TEXT NOT NULL DEFAULT 'General', `questionFormat` TEXT NOT NULL DEFAULT 'SINGLE_CHOICE', `questionText` TEXT NOT NULL, `optionsJson` TEXT NOT NULL, `correctIndicesJson` TEXT NOT NULL, `numericalLowerBound` REAL, `numericalUpperBound` REAL, `marks` REAL NOT NULL DEFAULT 1.0, `negativePenalty` REAL NOT NULL DEFAULT 0.0, `partialMarkingScheme` TEXT NOT NULL DEFAULT 'NONE', `verifiedExplanation` TEXT NOT NULL, `difficultyLevel` TEXT NOT NULL DEFAULT 'INTERMEDIATE', `examSourceTag` TEXT NOT NULL DEFAULT '', `languageCode` TEXT NOT NULL DEFAULT 'en', PRIMARY KEY(`questionId`), FOREIGN KEY(`nodeId`) REFERENCES `curriculum_nodes`(`nodeId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "questionId",
+            "columnName": "questionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nodeId",
+            "columnName": "nodeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "blueprintId",
+            "columnName": "blueprintId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sectionName",
+            "columnName": "sectionName",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'General'"
+          },
+          {
+            "fieldPath": "questionFormat",
+            "columnName": "questionFormat",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'SINGLE_CHOICE'"
+          },
+          {
+            "fieldPath": "questionText",
+            "columnName": "questionText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "optionsJson",
+            "columnName": "optionsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctIndicesJson",
+            "columnName": "correctIndicesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "numericalLowerBound",
+            "columnName": "numericalLowerBound",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "numericalUpperBound",
+            "columnName": "numericalUpperBound",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "marks",
+            "columnName": "marks",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "1.0"
+          },
+          {
+            "fieldPath": "negativePenalty",
+            "columnName": "negativePenalty",
+            "affinity": "REAL",
+            "notNull": true,
+            "defaultValue": "0.0"
+          },
+          {
+            "fieldPath": "partialMarkingScheme",
+            "columnName": "partialMarkingScheme",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'NONE'"
+          },
+          {
+            "fieldPath": "verifiedExplanation",
+            "columnName": "verifiedExplanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficultyLevel",
+            "columnName": "difficultyLevel",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'INTERMEDIATE'"
+          },
+          {
+            "fieldPath": "examSourceTag",
+            "columnName": "examSourceTag",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "languageCode",
+            "columnName": "languageCode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'en'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "questionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_assessment_questions_v2_nodeId",
+            "unique": false,
+            "columnNames": [
+              "nodeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assessment_questions_v2_nodeId` ON `${TABLE_NAME}` (`nodeId`)"
+          },
+          {
+            "name": "index_assessment_questions_v2_format",
+            "unique": false,
+            "columnNames": [
+              "questionFormat"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assessment_questions_v2_format` ON `${TABLE_NAME}` (`questionFormat`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "curriculum_nodes",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "nodeId"
+            ],
+            "referencedColumns": [
+              "nodeId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "personalised_roadmaps",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackId` TEXT NOT NULL, `userId` TEXT NOT NULL, `domain` TEXT NOT NULL, `subdomain` TEXT NOT NULL, `goal` TEXT NOT NULL, `targetRole` TEXT NOT NULL, `totalSteps` INTEGER NOT NULL, `stepsJson` TEXT NOT NULL, `updatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`trackId`), FOREIGN KEY(`trackId`, `userId`) REFERENCES `learner_tracks`(`trackId`, `userId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subdomain",
+            "columnName": "subdomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "goal",
+            "columnName": "goal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetRole",
+            "columnName": "targetRole",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalSteps",
+            "columnName": "totalSteps",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepsJson",
+            "columnName": "stepsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMs",
+            "columnName": "updatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "trackId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_personalised_roadmaps_userId",
+            "unique": false,
+            "columnNames": [
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_personalised_roadmaps_userId` ON `${TABLE_NAME}` (`userId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "learner_tracks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId",
+              "userId"
+            ],
+            "referencedColumns": [
+              "trackId",
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "skill_gap_reports",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`trackId` TEXT NOT NULL, `userId` TEXT NOT NULL, `domain` TEXT NOT NULL, `subdomain` TEXT NOT NULL, `overallScorePercent` INTEGER NOT NULL, `totalQuestions` INTEGER NOT NULL, `correctCount` INTEGER NOT NULL, `strengthsJson` TEXT NOT NULL, `weaknessesJson` TEXT NOT NULL, `skillGapsJson` TEXT NOT NULL, `generatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`trackId`), FOREIGN KEY(`trackId`, `userId`) REFERENCES `learner_tracks`(`trackId`, `userId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subdomain",
+            "columnName": "subdomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "overallScorePercent",
+            "columnName": "overallScorePercent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalQuestions",
+            "columnName": "totalQuestions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctCount",
+            "columnName": "correctCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "strengthsJson",
+            "columnName": "strengthsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weaknessesJson",
+            "columnName": "weaknessesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillGapsJson",
+            "columnName": "skillGapsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generatedAtEpochMs",
+            "columnName": "generatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "trackId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_skill_gap_reports_userId",
+            "unique": false,
+            "columnNames": [
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_skill_gap_reports_userId` ON `${TABLE_NAME}` (`userId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "learner_tracks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId",
+              "userId"
+            ],
+            "referencedColumns": [
+              "trackId",
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "study_tasks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`taskId` TEXT NOT NULL, `trackId` TEXT NOT NULL, `userId` TEXT NOT NULL, `roadmapStepId` TEXT NOT NULL, `dayIndex` INTEGER NOT NULL, `weekIndex` INTEGER NOT NULL, `title` TEXT NOT NULL, `topic` TEXT NOT NULL, `durationMinutes` INTEGER NOT NULL, `isCompleted` INTEGER NOT NULL DEFAULT 0, `completedAtEpochMs` INTEGER, `notes` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`taskId`), FOREIGN KEY(`trackId`, `userId`) REFERENCES `learner_tracks`(`trackId`, `userId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "taskId",
+            "columnName": "taskId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "roadmapStepId",
+            "columnName": "roadmapStepId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayIndex",
+            "columnName": "dayIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekIndex",
+            "columnName": "weekIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "topic",
+            "columnName": "topic",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMinutes",
+            "columnName": "durationMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isCompleted",
+            "columnName": "isCompleted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "completedAtEpochMs",
+            "columnName": "completedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "taskId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_study_tasks_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_study_tasks_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          },
+          {
+            "name": "index_study_tasks_userId_dayIndex",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "dayIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_study_tasks_userId_dayIndex` ON `${TABLE_NAME}` (`userId`, `dayIndex`)"
+          },
+          {
+            "name": "index_study_tasks_userId_isCompleted",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "isCompleted"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_study_tasks_userId_isCompleted` ON `${TABLE_NAME}` (`userId`, `isCompleted`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "learner_tracks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId",
+              "userId"
+            ],
+            "referencedColumns": [
+              "trackId",
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chat_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `trackId` TEXT NOT NULL, `userId` TEXT NOT NULL, `domain` TEXT NOT NULL, `title` TEXT NOT NULL, `isAiEnabled` INTEGER NOT NULL DEFAULT 1, `createdAtEpochMs` INTEGER NOT NULL, `updatedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`sessionId`), FOREIGN KEY(`trackId`, `userId`) REFERENCES `learner_tracks`(`trackId`, `userId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trackId",
+            "columnName": "trackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAiEnabled",
+            "columnName": "isAiEnabled",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "createdAtEpochMs",
+            "columnName": "createdAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMs",
+            "columnName": "updatedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chat_sessions_trackId",
+            "unique": false,
+            "columnNames": [
+              "trackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chat_sessions_trackId` ON `${TABLE_NAME}` (`trackId`)"
+          },
+          {
+            "name": "index_chat_sessions_userId_updatedAtEpochMs",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "updatedAtEpochMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chat_sessions_userId_updatedAtEpochMs` ON `${TABLE_NAME}` (`userId`, `updatedAtEpochMs`)"
+          },
+          {
+            "name": "index_chat_sessions_sessionId_userId",
+            "unique": true,
+            "columnNames": [
+              "sessionId",
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_chat_sessions_sessionId_userId` ON `${TABLE_NAME}` (`sessionId`, `userId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "learner_tracks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "trackId",
+              "userId"
+            ],
+            "referencedColumns": [
+              "trackId",
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "chat_messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `userId` TEXT NOT NULL, `senderRole` TEXT NOT NULL, `text` TEXT NOT NULL, `isAiGenerated` INTEGER NOT NULL, `promptTokensEstimate` INTEGER NOT NULL DEFAULT 0, `generatedTokens` INTEGER NOT NULL DEFAULT 0, `ttftMs` INTEGER, `tokensPerSec` REAL, `errorText` TEXT, `timestampEpochMs` INTEGER NOT NULL, PRIMARY KEY(`messageId`), FOREIGN KEY(`sessionId`, `userId`) REFERENCES `chat_sessions`(`sessionId`, `userId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "messageId",
+            "columnName": "messageId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderRole",
+            "columnName": "senderRole",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAiGenerated",
+            "columnName": "isAiGenerated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "promptTokensEstimate",
+            "columnName": "promptTokensEstimate",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "generatedTokens",
+            "columnName": "generatedTokens",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "ttftMs",
+            "columnName": "ttftMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "tokensPerSec",
+            "columnName": "tokensPerSec",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "errorText",
+            "columnName": "errorText",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "timestampEpochMs",
+            "columnName": "timestampEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "messageId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chat_messages_sessionId_timestampEpochMs",
+            "unique": false,
+            "columnNames": [
+              "sessionId",
+              "timestampEpochMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chat_messages_sessionId_timestampEpochMs` ON `${TABLE_NAME}` (`sessionId`, `timestampEpochMs`)"
+          },
+          {
+            "name": "index_chat_messages_userId",
+            "unique": false,
+            "columnNames": [
+              "userId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chat_messages_userId` ON `${TABLE_NAME}` (`userId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "chat_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId",
+              "userId"
+            ],
+            "referencedColumns": [
+              "sessionId",
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "verified_topics",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`topicId` TEXT NOT NULL, `domain` TEXT NOT NULL, `subdomain` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `verifiedExplanation` TEXT NOT NULL, `coreKeywordsJson` TEXT NOT NULL, `prerequisiteTopicIdsJson` TEXT NOT NULL, `estimatedMinutes` INTEGER NOT NULL, `referenceTitle` TEXT NOT NULL, `referenceAuthor` TEXT NOT NULL, `referenceEdition` TEXT NOT NULL, `referenceChapter` TEXT NOT NULL, `referenceSection` TEXT NOT NULL, `referenceIdentifier` TEXT NOT NULL, PRIMARY KEY(`topicId`))",
+        "fields": [
+          {
+            "fieldPath": "topicId",
+            "columnName": "topicId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subdomain",
+            "columnName": "subdomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verifiedExplanation",
+            "columnName": "verifiedExplanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coreKeywordsJson",
+            "columnName": "coreKeywordsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "prerequisiteTopicIdsJson",
+            "columnName": "prerequisiteTopicIdsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimatedMinutes",
+            "columnName": "estimatedMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceTitle",
+            "columnName": "referenceTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceAuthor",
+            "columnName": "referenceAuthor",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceEdition",
+            "columnName": "referenceEdition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceChapter",
+            "columnName": "referenceChapter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceSection",
+            "columnName": "referenceSection",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "referenceIdentifier",
+            "columnName": "referenceIdentifier",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "topicId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_verified_topics_domain_subdomain",
+            "unique": false,
+            "columnNames": [
+              "domain",
+              "subdomain"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_verified_topics_domain_subdomain` ON `${TABLE_NAME}` (`domain`, `subdomain`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "assessment_questions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`questionId` TEXT NOT NULL, `domain` TEXT NOT NULL, `subdomain` TEXT NOT NULL, `topic` TEXT NOT NULL, `questionText` TEXT NOT NULL, `optionsJson` TEXT NOT NULL, `correctIndex` INTEGER NOT NULL, `verifiedExplanation` TEXT NOT NULL, `difficultyLevel` TEXT NOT NULL, PRIMARY KEY(`questionId`))",
+        "fields": [
+          {
+            "fieldPath": "questionId",
+            "columnName": "questionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "domain",
+            "columnName": "domain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subdomain",
+            "columnName": "subdomain",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "topic",
+            "columnName": "topic",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "questionText",
+            "columnName": "questionText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "optionsJson",
+            "columnName": "optionsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctIndex",
+            "columnName": "correctIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verifiedExplanation",
+            "columnName": "verifiedExplanation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficultyLevel",
+            "columnName": "difficultyLevel",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "questionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_assessment_questions_domain_topic",
+            "unique": false,
+            "columnNames": [
+              "domain",
+              "topic"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_assessment_questions_domain_topic` ON `${TABLE_NAME}` (`domain`, `topic`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '787442109c1cdf80f01c892e47261678')"
+    ]
+  }
+}

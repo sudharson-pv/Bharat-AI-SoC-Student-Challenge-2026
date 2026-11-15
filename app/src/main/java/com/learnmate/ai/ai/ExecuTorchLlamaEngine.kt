@@ -1,0 +1,527 @@
+package com.learnmate.ai.ai
+
+import android.os.SystemClock
+import android.util.Log
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.lang.reflect.InvocationHandler
+import java.lang.reflect.Proxy
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * On-Device ExecuTorch 1.4.0 Llama Engine (Gate 2 Inference Spike).
+ * - Executes model loading and token generation on a dedicated single-thread dispatcher.
+ * - Guarded by [engineMutex] ensuring strictly serialized native execution.
+ * - Bridges to org.pytorch.executorch.extension.llm.LlmModule and LlmCallback.
+ * - Never fabricates fake responses or simulated streaming.
+ */
+class ExecuTorchLlamaEngine(
+    private val assetManager: ModelAssetManager,
+    private val runtimeBridge: NativeLlmBridge = ReflectionExecuTorchLlmBridge(),
+    private val inferenceDispatcher: CoroutineDispatcher =
+        Executors.newSingleThreadExecutor { r ->
+            Thread(r, "ExecuTorch-Inference-Thread").apply { isDaemon = true }
+        }.asCoroutineDispatcher()
+) {
+    companion object {
+        private const val TAG = "ExecuTorchEngine"
+    }
+
+    interface NativeLlmBridge {
+        fun createAndLoadModule(modelPath: String, tokenizerPath: String, temperature: Float): Any
+        fun generate(
+            moduleInstance: Any,
+            prompt: String,
+            maxNewTokens: Int,
+            onToken: (String) -> Unit,
+            onStats: (Float) -> Unit
+        ): Int
+        fun stop(moduleInstance: Any)
+    }
+
+    data class GenerationMetrics(
+        val generatedText: String,
+        val tokenCount: Int,
+        val ttftMs: Long,
+        val totalElapsedMs: Long,
+        val tokensPerSecond: Double,
+        val promptTokensEstimate: Int,
+        val allowedOutputTokens: Int
+    )
+
+    private val engineMutex = Mutex()
+    private var loadedModule: Any? = null
+    var loadedModelPath: String? = null
+        private set
+    private var activeCancellation = AtomicBoolean(false)
+
+    private val _runtimeState = MutableStateFlow(ModelRuntimeState.MODEL_MISSING)
+    val runtimeState: StateFlow<ModelRuntimeState> = _runtimeState.asStateFlow()
+
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    @Volatile
+    var lastLoadTimeMs: Long? = null
+        private set
+
+    @Volatile
+    var lastTtftMs: Long? = null
+        private set
+
+    @Volatile
+    var lastGeneratedTokens: Int? = null
+        private set
+
+    @Volatile
+    var lastDecodeTokensPerSec: Double? = null
+        private set
+
+    suspend fun refreshModelPresenceState(): ModelRuntimeState = withContext(Dispatchers.IO) {
+        if (loadedModule != null) {
+            return@withContext _runtimeState.value
+        }
+        val valid = assetManager.isValidInstalledModel()
+        val nextState = if (valid) ModelRuntimeState.MODEL_READY else ModelRuntimeState.MODEL_MISSING
+        _runtimeState.value = nextState
+        if (!valid) {
+            _lastError.value = "Quantized model (${ActiveModelManifest.MODEL_FILENAME}) not found in ${assetManager.modelsDirectory.absolutePath}."
+        } else {
+            _lastError.value = null
+        }
+        nextState
+    }
+
+    suspend fun loadModel(
+        modelPath: String = assetManager.activeModelFile.absolutePath,
+        tokenizerPath: String = assetManager.activeTokenizerFile.absolutePath,
+        temperature: Float = 0.8f
+    ): Result<Unit> = engineMutex.withLock {
+        withContext(inferenceDispatcher) {
+            if (loadedModule != null && loadedModelPath == modelPath) {
+                _runtimeState.value = ModelRuntimeState.READY
+                return@withContext Result.success(Unit)
+            }
+
+            _runtimeState.value = ModelRuntimeState.LOADING_MODEL
+            _lastError.value = null
+
+            // Security Gate 6.16.5 & 6.16.6: Verify asset integrity and format before native memory mapping
+            val modelFile = java.io.File(modelPath)
+            val tokFile = java.io.File(tokenizerPath)
+            if (assetManager.isGgufFile(modelFile)) {
+                val err = "Format Rejection: GGUF files cannot be loaded through the ExecuTorch PTE loader. Use PyTorch export to generate .pte."
+                Log.e(TAG, err)
+                _lastError.value = err
+                _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                return@withContext Result.failure(IllegalArgumentException(err))
+            }
+            val expectedEntry = ModelCatalog.ALL_ENTRIES.firstOrNull { it.modelFileName == modelFile.name } ?: ModelCatalog.ENTRY_LLAMA_3_2_1B
+            if (runtimeBridge is ReflectionExecuTorchLlmBridge) {
+                if (!modelFile.exists() || modelFile.length() != expectedEntry.modelSizeBytes ||
+                    !tokFile.exists() || tokFile.length() != expectedEntry.tokenizerSizeBytes) {
+                    val err = "Security Pre-Condition Failed: Cannot load unverified or truncated model assets into ExecuTorch JNI (model=${if (modelFile.exists()) modelFile.length() else 0}, tok=${if (tokFile.exists()) tokFile.length() else 0})"
+                    Log.e(TAG, err)
+                    _lastError.value = err
+                    _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                    return@withContext Result.failure(IllegalStateException(err))
+                }
+            }
+
+            Log.i(TAG, "Loading ExecuTorch LlmModule: model=$modelPath, tok=$tokenizerPath")
+            val t0 = SystemClock.elapsedRealtime()
+
+            try {
+                val instance = runtimeBridge.createAndLoadModule(
+                    modelPath = modelPath,
+                    tokenizerPath = tokenizerPath,
+                    temperature = temperature
+                )
+                val loadElapsed = (SystemClock.elapsedRealtime() - t0).coerceAtLeast(1L)
+                loadedModule = instance
+                loadedModelPath = modelPath
+                lastLoadTimeMs = loadElapsed
+                _runtimeState.value = ModelRuntimeState.MODEL_LOADED
+                _runtimeState.value = ModelRuntimeState.READY
+                Log.i(TAG, "LlmModule loaded successfully in ${loadElapsed}ms")
+                Result.success(Unit)
+            } catch (t: Throwable) {
+                loadedModule = null
+                loadedModelPath = null
+                val msg = "Native ExecuTorch LlmModule load failed: ${t.javaClass.simpleName}: ${t.message}"
+                Log.e(TAG, msg, t)
+                _lastError.value = msg
+                _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                Result.failure(IllegalStateException(msg, t))
+            }
+        }
+    }
+
+    /**
+     * Master Phase 4: Safely switches active model with pre-flight verification and automatic rollback.
+     * Prevents leaving the application without a working model if target model initialization fails.
+     */
+    suspend fun switchModel(
+        targetEntry: ModelCatalogEntry,
+        temperature: Float = 0.8f
+    ): Result<Unit> = engineMutex.withLock {
+        withContext(inferenceDispatcher) {
+            Log.i(TAG, "Initiating safe model switch to: ${targetEntry.displayName} (${targetEntry.modelId})")
+
+            val targetModelFile = assetManager.getModelFile(targetEntry.modelId)
+            val targetTokFile = assetManager.getTokenizerFile(targetEntry.modelId)
+
+            // Step 1: Pre-flight validation prior to touching the currently loaded active model
+            if (assetManager.isGgufFile(targetModelFile)) {
+                val err = "Format Rejection: GGUF format not supported by ExecuTorch PTE loader"
+                Log.e(TAG, err)
+                _lastError.value = err
+                return@withContext Result.failure(IllegalArgumentException(err))
+            }
+            if (!targetModelFile.exists() || !targetModelFile.isFile || targetModelFile.length() != targetEntry.modelSizeBytes) {
+                val err = "Target model verification failed: File missing or size mismatch (${targetModelFile.length()} vs expected ${targetEntry.modelSizeBytes})"
+                Log.e(TAG, err)
+                _lastError.value = err
+                return@withContext Result.failure(IllegalStateException(err))
+            }
+            if (!targetTokFile.exists() || !targetTokFile.isFile || targetTokFile.length() != targetEntry.tokenizerSizeBytes) {
+                val err = "Target tokenizer verification failed: File missing or size mismatch"
+                Log.e(TAG, err)
+                _lastError.value = err
+                return@withContext Result.failure(IllegalStateException(err))
+            }
+
+            // Step 2: Preserve previous active references for reliable rollback
+            val previousModule = loadedModule
+            val previousModelPath = loadedModelPath
+            val previousEntry = ModelCatalog.ALL_ENTRIES.firstOrNull { it.modelFileName == File(previousModelPath ?: "").name }
+                ?: ModelCatalog.ENTRY_LLAMA_3_2_1B
+            val previousTokFile = assetManager.getTokenizerFile(previousEntry.modelId)
+
+            // Step 3: Unload previous active model
+            if (previousModule != null) {
+                try {
+                    runtimeBridge.stop(previousModule)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Notice during previous module stop: ${e.message}")
+                }
+                loadedModule = null
+                loadedModelPath = null
+            }
+            _runtimeState.value = ModelRuntimeState.LOADING_MODEL
+
+            // Step 4: Attempt native loading of target model
+            val t0 = SystemClock.elapsedRealtime()
+            try {
+                val instance = runtimeBridge.createAndLoadModule(
+                    modelPath = targetModelFile.absolutePath,
+                    tokenizerPath = targetTokFile.absolutePath,
+                    temperature = temperature
+                )
+                val loadElapsed = (SystemClock.elapsedRealtime() - t0).coerceAtLeast(1L)
+                loadedModule = instance
+                loadedModelPath = targetModelFile.absolutePath
+                lastLoadTimeMs = loadElapsed
+                _runtimeState.value = ModelRuntimeState.MODEL_LOADED
+                _runtimeState.value = ModelRuntimeState.READY
+                _lastError.value = null
+                Log.i(TAG, "Switched successfully to ${targetEntry.displayName} in ${loadElapsed}ms")
+                Result.success(Unit)
+            } catch (t: Throwable) {
+                val targetError = "${t.javaClass.simpleName}: ${t.message}"
+                Log.e(TAG, "Failed to load target model ${targetEntry.displayName}: $targetError. Initiating automatic rollback.", t)
+
+                // Step 5: Rollback Recovery Path to previous working model
+                if (previousModelPath != null && File(previousModelPath).exists() && previousTokFile.exists()) {
+                    try {
+                        Log.i(TAG, "Executing rollback to previous model: $previousModelPath")
+                        val rollbackInstance = runtimeBridge.createAndLoadModule(
+                            modelPath = previousModelPath,
+                            tokenizerPath = previousTokFile.absolutePath,
+                            temperature = temperature
+                        )
+                        loadedModule = rollbackInstance
+                        loadedModelPath = previousModelPath
+                        _runtimeState.value = ModelRuntimeState.READY
+                        val rollbackMsg = "Failed to switch to ${targetEntry.displayName} ($targetError). Successfully rolled back to previous active model."
+                        _lastError.value = rollbackMsg
+                        Log.i(TAG, rollbackMsg)
+                        return@withContext Result.failure(IllegalStateException(rollbackMsg, t))
+                    } catch (rollbackError: Throwable) {
+                        Log.e(TAG, "Fatal: Rollback to previous model also failed: ${rollbackError.message}", rollbackError)
+                    }
+                }
+
+                loadedModule = null
+                loadedModelPath = null
+                val fatalMsg = "Failed to switch to ${targetEntry.displayName}: $targetError, and rollback was unavailable."
+                Log.e(TAG, fatalMsg)
+                _lastError.value = fatalMsg
+                _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                Result.failure(IllegalStateException(fatalMsg, t))
+            }
+        }
+    }
+
+    suspend fun generateWithBudget(
+        plan: ExactPromptBudgeter.BudgetPlan,
+        onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
+    ): Result<GenerationMetrics> {
+        return executeGeneration(
+            formattedPrompt = plan.formattedPrompt,
+            allowedOutputTokens = plan.allowedOutputTokens,
+            promptTokensEstimate = plan.exactPrefillTokens,
+            onTokenDelta = onTokenDelta
+        )
+    }
+
+    suspend fun generate(
+        prompt: String,
+        maxNewTokens: Int = 256,
+        onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
+    ): Result<GenerationMetrics> {
+        val budget = PromptBudgeter.planPromptBudget(prompt, maxNewTokens)
+        return executeGeneration(
+            formattedPrompt = budget.formattedPrompt,
+            allowedOutputTokens = budget.allowedOutputTokens,
+            promptTokensEstimate = budget.estimatedPromptTokens,
+            onTokenDelta = onTokenDelta
+        )
+    }
+
+    private suspend fun executeGeneration(
+        formattedPrompt: String,
+        allowedOutputTokens: Int,
+        promptTokensEstimate: Int,
+        onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
+    ): Result<GenerationMetrics> {
+        return engineMutex.withLock {
+            withContext(inferenceDispatcher) {
+                val module = loadedModule ?: return@withContext Result.failure(
+                    IllegalStateException("Model not loaded. Call loadModel() first.")
+                )
+
+                _runtimeState.value = ModelRuntimeState.GENERATING
+                _lastError.value = null
+                activeCancellation.set(false)
+
+                val builder = StringBuilder()
+                var tokenCallbacks = 0
+                val startMs = SystemClock.elapsedRealtime()
+                var firstTokenMs: Long? = null
+                var reportedTps: Float? = null
+
+                try {
+                    Log.i(
+                        TAG,
+                        "Starting generation (promptTokens~=$promptTokensEstimate, allowedOutput=$allowedOutputTokens)"
+                    )
+
+                    val status = runtimeBridge.generate(
+                        moduleInstance = module,
+                        prompt = formattedPrompt,
+                        maxNewTokens = allowedOutputTokens,
+                        onToken = { rawToken ->
+                            if (activeCancellation.get()) return@generate
+                            if (rawToken.contains("<|eot_id|>") || rawToken.contains("<|end_of_text|>")) {
+                                val cleaned = rawToken
+                                    .replace("<|eot_id|>", "")
+                                    .replace("<|end_of_text|>", "")
+                                if (cleaned.isNotEmpty()) {
+                                    builder.append(cleaned)
+                                    onTokenDelta(builder.toString(), cleaned)
+                                }
+                                activeCancellation.set(true)
+                                return@generate
+                            }
+                            if (rawToken.isNotEmpty()) {
+                                if (firstTokenMs == null) {
+                                    firstTokenMs = (SystemClock.elapsedRealtime() - startMs).coerceAtLeast(1L)
+                                    Log.i(TAG, "First token received in ${firstTokenMs}ms")
+                                }
+                                tokenCallbacks += 1
+                                builder.append(rawToken)
+                                onTokenDelta(builder.toString(), rawToken)
+                                if (tokenCallbacks >= allowedOutputTokens) {
+                                    activeCancellation.set(true)
+                                    runtimeBridge.stop(module)
+                                }
+                            }
+                        },
+                        onStats = { tps ->
+                            if (tps > 0f) reportedTps = tps
+                        }
+                    )
+
+                    val totalMs = (SystemClock.elapsedRealtime() - startMs).coerceAtLeast(1L)
+                    val finalOutput = builder.toString().trim()
+
+                    if (finalOutput.isEmpty() && !activeCancellation.get()) {
+                        val err = "LlmModule.generate returned status=$status with 0 generated tokens."
+                        _lastError.value = err
+                        _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                        return@withContext Result.failure(IllegalStateException(err))
+                    }
+
+                    val ttft = firstTokenMs ?: totalMs
+                    val decodeWindowMs = (totalMs - ttft).coerceAtLeast(1L)
+                    val computedTps = reportedTps?.toDouble()
+                        ?: if (tokenCallbacks > 1) {
+                            ((tokenCallbacks - 1) * 1000.0) / decodeWindowMs.toDouble()
+                        } else {
+                            (tokenCallbacks * 1000.0) / totalMs.toDouble()
+                        }
+
+                    lastTtftMs = ttft
+                    lastGeneratedTokens = tokenCallbacks
+                    lastDecodeTokensPerSec = kotlin.math.round(computedTps * 100.0) / 100.0
+
+                    _runtimeState.value = ModelRuntimeState.COMPLETED
+                    _runtimeState.value = ModelRuntimeState.READY
+
+                    Result.success(
+                        GenerationMetrics(
+                            generatedText = finalOutput,
+                            tokenCount = tokenCallbacks,
+                            ttftMs = ttft,
+                            totalElapsedMs = totalMs,
+                            tokensPerSecond = lastDecodeTokensPerSec ?: computedTps,
+                            promptTokensEstimate = promptTokensEstimate,
+                            allowedOutputTokens = allowedOutputTokens
+                        )
+                    )
+                } catch (t: Throwable) {
+                    val err = "Native generation failed: ${t.javaClass.simpleName}: ${t.message}"
+                    Log.e(TAG, err, t)
+                    _lastError.value = err
+                    _runtimeState.value = ModelRuntimeState.MODEL_ERROR
+                    Result.failure(IllegalStateException(err, t))
+                }
+            }
+        }
+    }
+
+    fun stop() {
+        activeCancellation.set(true)
+        val module = loadedModule
+        if (module != null) {
+            try {
+                runtimeBridge.stop(module)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Error stopping module", t)
+            }
+        }
+    }
+}
+
+/**
+ * Default reflection-based bridge to org.pytorch.executorch.extension.llm.LlmModule and LlmCallback.
+ * Enables both host JVM tests (with mock bridge) and real on-device JNI execution.
+ */
+class ReflectionExecuTorchLlmBridge : ExecuTorchLlamaEngine.NativeLlmBridge {
+
+    override fun createAndLoadModule(modelPath: String, tokenizerPath: String, temperature: Float): Any {
+        val llmModuleClass = Class.forName("org.pytorch.executorch.extension.llm.LlmModule")
+        val instance = try {
+            val ctor3 = llmModuleClass.getConstructor(
+                String::class.java,
+                String::class.java,
+                Float::class.javaPrimitiveType
+            )
+            ctor3.newInstance(modelPath, tokenizerPath, temperature)
+        } catch (_: NoSuchMethodException) {
+            val ctor2 = llmModuleClass.getConstructor(String::class.java, String::class.java)
+            ctor2.newInstance(modelPath, tokenizerPath)
+        }
+
+        try {
+            val loadMethod = llmModuleClass.getMethod("load")
+            val loadResult = loadMethod.invoke(instance) as? Int ?: 0
+            if (loadResult != 0) {
+                throw IllegalStateException("LlmModule.load() returned non-zero error code: $loadResult")
+            }
+        } catch (_: NoSuchMethodException) {
+            // Eager loading constructor
+        }
+        return instance
+    }
+
+    override fun generate(
+        moduleInstance: Any,
+        prompt: String,
+        maxNewTokens: Int,
+        onToken: (String) -> Unit,
+        onStats: (Float) -> Unit
+    ): Int {
+        val callbackClass = Class.forName("org.pytorch.executorch.extension.llm.LlmCallback")
+        val callbackProxy = Proxy.newProxyInstance(
+            callbackClass.classLoader,
+            arrayOf(callbackClass),
+            InvocationHandler { _, method, args ->
+                when (method.name) {
+                    "onResult" -> {
+                        val token = args?.firstOrNull() as? String ?: ""
+                        onToken(token)
+                        null
+                    }
+                    "onStats" -> {
+                        val tps = (args?.firstOrNull() as? Number)?.toFloat() ?: 0f
+                        onStats(tps)
+                        null
+                    }
+                    "hashCode" -> System.identityHashCode(this)
+                    "equals" -> false
+                    "toString" -> "ExecuTorchLlmCallbackProxy"
+                    else -> null
+                }
+            }
+        )
+
+        val cls = moduleInstance.javaClass
+        // In ExecuTorch C++, seq_len represents the TOTAL sequence window (prompt + max_new_tokens),
+        // NOT max_new_tokens alone. resolve_max_new_tokens calculates (seq_len - num_prompt_tokens).
+        // Therefore, totalSeqWindow must encompass prompt + output, capped at MAX_SEQ_LENGTH (512).
+        val estimatedPrompt = PromptBudgeter.estimateTokens(prompt)
+        val totalSeqWindow = (estimatedPrompt + maxNewTokens).coerceIn(32, ActiveModelManifest.MAX_SEQ_LENGTH)
+        return try {
+            val m4 = cls.getMethod(
+                "generate",
+                String::class.java,
+                Int::class.javaPrimitiveType,
+                callbackClass,
+                Boolean::class.javaPrimitiveType
+            )
+            (m4.invoke(moduleInstance, prompt, totalSeqWindow, callbackProxy, false) as? Int) ?: 0
+        } catch (_: NoSuchMethodException) {
+            try {
+                val m3 = cls.getMethod(
+                    "generate",
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    callbackClass
+                )
+                (m3.invoke(moduleInstance, prompt, totalSeqWindow, callbackProxy) as? Int) ?: 0
+            } catch (_: NoSuchMethodException) {
+                val m2 = cls.getMethod("generate", String::class.java, callbackClass)
+                (m2.invoke(moduleInstance, prompt, callbackProxy) as? Int) ?: 0
+            }
+        }
+    }
+
+    override fun stop(moduleInstance: Any) {
+        try {
+            moduleInstance.javaClass.getMethod("stop").invoke(moduleInstance)
+        } catch (_: Exception) {
+        }
+    }
+}
+

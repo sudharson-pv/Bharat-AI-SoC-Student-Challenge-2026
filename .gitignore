@@ -1,0 +1,35 @@
+# Gradle & Build outputs
+.gradle/
+build/
+app/build/
+.kotlin/
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.shelf/
+
+# Local configuration & environment
+local.properties
+keystore/
+*.jks
+*.keystore
+
+# Android build outputs
+*.apk
+*.aab
+*.ap_
+output-metadata.json
+
+# AI Model weights & Large binary assets (distributed via separate model repository)
+model/
+models/
+*.pte
+*.bin
+*.pt
+
+# OS specific files
+.DS_Store
+Thumbs.db
