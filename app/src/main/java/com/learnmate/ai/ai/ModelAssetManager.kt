@@ -38,10 +38,10 @@ class ModelAssetManager(
         get() = File(appFilesDir, "models")
 
     val activeModelFile: File
-        get() = File(modelsDirectory, ActiveModelManifest.MODEL_FILENAME)
+        get() = getModelFile(ActiveModelManifest.MODEL_ID)
 
     val activeTokenizerFile: File
-        get() = File(modelsDirectory, ActiveModelManifest.TOKENIZER_FILENAME)
+        get() = getTokenizerFile(ActiveModelManifest.MODEL_ID)
 
     fun ensureModelsDirectory(): File {
         val dir = modelsDirectory

@@ -88,6 +88,8 @@ fun LearnMateNavGraph(
             }
             ModelDownloadScreen(
                 downloadEngine = downloadEngine,
+                learningViewModel = learningViewModel,
+                onNavigateToDiagnostics = { navController.navigate(Screen.ModelDiagnostics.route) },
                 onModelReady = {
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.ModelDownload.route) { inclusive = true }
@@ -251,6 +253,14 @@ fun LearnMateNavGraph(
                 onToggleDarkTheme = onToggleDarkTheme,
                 onNavigateToLanguage = { navController.navigate(Screen.LanguageSelection.route) },
                 onNavigateToModelDownload = { navController.navigate(Screen.ModelDownload.route) },
+                onNavigateToDiagnostics = { navController.navigate(Screen.ModelDiagnostics.route) },
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ModelDiagnostics.route) {
+            com.learnmate.ai.ui.screens.ModelDiagnosticsScreen(
+                learningViewModel = learningViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

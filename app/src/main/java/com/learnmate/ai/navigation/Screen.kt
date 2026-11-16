@@ -11,6 +11,7 @@ sealed class Screen(val route: String) {
     data object AiTutor : Screen("ai_tutor")
     data object LanguageSelection : Screen("language_selection")
     data object ModelDownload : Screen("model_download")
+    data object ModelDiagnostics : Screen("model_diagnostics")
     data object Settings : Screen("settings")
     data object MultiTrackDashboard : Screen("multi_track_dashboard")
     data object CurriculumBrowser : Screen("curriculum_browser")

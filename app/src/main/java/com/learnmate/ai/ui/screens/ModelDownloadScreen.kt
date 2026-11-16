@@ -43,6 +43,8 @@ import java.io.File
 @Composable
 fun ModelDownloadScreen(
     downloadEngine: ModelDownloadEngine,
+    learningViewModel: com.learnmate.ai.viewmodel.LearningViewModel? = null,
+    onNavigateToDiagnostics: () -> Unit = {},
     onModelReady: () -> Unit,
     onSkipOrContinue: () -> Unit
 ) {
@@ -56,6 +58,8 @@ fun ModelDownloadScreen(
     var activeModelId by remember { mutableStateOf(appPreferences.getActiveModelId()) }
     val downloadSnapshot by downloadEngine.downloadFlow.collectAsState()
     val selectedCatalogEntry by downloadEngine.selectedEntry.collectAsState()
+    val runtimeState by (learningViewModel?.runtimeState ?: remember { kotlinx.coroutines.flow.MutableStateFlow(ModelRuntimeState.NOT_INSTALLED) }).collectAsState()
+    val engineError by (learningViewModel?.engineError ?: remember { kotlinx.coroutines.flow.MutableStateFlow<String?>(null) }).collectAsState()
 
     // Hardware diagnostics
     val totalRamBytes = remember {
@@ -87,7 +91,7 @@ fun ModelDownloadScreen(
     val speedMbps = "%.2f".format(downloadSnapshot.speedBytesPerSec.toDouble() / (1024.0 * 1024.0))
 
     val isCurrentSelectedInstalled = assetManager.isModelInstalled(selectedCatalogEntry.modelId)
-    val isCurrentSelectedActive = (selectedCatalogEntry.modelId == activeModelId) && isCurrentSelectedInstalled
+    val isCurrentSelectedActive = (selectedCatalogEntry.modelId == activeModelId) && isCurrentSelectedInstalled && (runtimeState == ModelRuntimeState.READY)
 
     val hardwareCompat = selectedCatalogEntry.isCompatibleWithHardware(
         apiLevel = Build.VERSION.SDK_INT,
@@ -106,6 +110,12 @@ fun ModelDownloadScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToDiagnostics) {
+                        Icon(
+                            imageVector = Icons.Default.Analytics,
+                            contentDescription = "Open Model Diagnostics"
+                        )
+                    }
                     IconButton(onClick = { showCdnDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.CloudDownload,
@@ -175,7 +185,10 @@ fun ModelDownloadScreen(
                 ModelCatalog.ALL_ENTRIES.forEach { entry ->
                     val isSelected = entry.modelId == selectedCatalogEntry.modelId
                     val isInstalled = assetManager.isModelInstalled(entry.modelId)
-                    val isActive = isInstalled && (entry.modelId == activeModelId)
+                    val isCurrentTarget = (entry.modelId == activeModelId)
+                    val isActive = isInstalled && isCurrentTarget && (runtimeState == ModelRuntimeState.READY)
+                    val isInitializing = isInstalled && isCurrentTarget && (runtimeState == ModelRuntimeState.INITIALIZING)
+                    val isFailed = isInstalled && isCurrentTarget && (runtimeState == ModelRuntimeState.INITIALIZATION_FAILED || runtimeState == ModelRuntimeState.INFERENCE_FAILED)
                     val entryCompat = entry.isCompatibleWithHardware(
                         apiLevel = Build.VERSION.SDK_INT,
                         totalRamBytes = totalRamBytes,
@@ -187,6 +200,8 @@ fun ModelDownloadScreen(
                         isSelected = isSelected,
                         isInstalled = isInstalled,
                         isActive = isActive,
+                        isInitializing = isInitializing,
+                        isFailed = isFailed,
                         isCompatible = entryCompat.isCompatible,
                         incompatibilityReason = entryCompat.failureReason,
                         onClick = {
@@ -265,56 +280,135 @@ fun ModelDownloadScreen(
                 }
             } else if (isCurrentSelectedInstalled) {
                 // Model is installed on disk
+                val isSelectedActive = (selectedCatalogEntry.modelId == activeModelId) && (runtimeState == ModelRuntimeState.READY)
+                val isSelectedInitializing = (selectedCatalogEntry.modelId == activeModelId) && (runtimeState == ModelRuntimeState.INITIALIZING)
+                val isSelectedFailed = (selectedCatalogEntry.modelId == activeModelId) && (runtimeState == ModelRuntimeState.INITIALIZATION_FAILED || runtimeState == ModelRuntimeState.INFERENCE_FAILED)
+
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = if (isCurrentSelectedActive) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            isSelectedActive -> Color(0xFFE8F5E9)
+                            isSelectedFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
+                            isSelectedInitializing -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                        }
+                    ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isCurrentSelectedActive) Icons.Default.CheckCircle else Icons.Default.FileDownloadDone,
+                                imageVector = when {
+                                    isSelectedActive -> Icons.Default.CheckCircle
+                                    isSelectedFailed -> Icons.Default.Error
+                                    isSelectedInitializing -> Icons.Default.HourglassTop
+                                    else -> Icons.Default.FileDownloadDone
+                                },
                                 contentDescription = null,
-                                tint = if (isCurrentSelectedActive) Color(0xFF2E7D32) else MaterialTheme.colorScheme.secondary
+                                tint = when {
+                                    isSelectedActive -> Color(0xFF2E7D32)
+                                    isSelectedFailed -> MaterialTheme.colorScheme.error
+                                    isSelectedInitializing -> Color(0xFFEF6C00)
+                                    else -> MaterialTheme.colorScheme.secondary
+                                }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isCurrentSelectedActive) "Currently Active Model" else "Model Installed (Inactive)",
+                                text = when {
+                                    isSelectedActive -> "Currently Active Model"
+                                    isSelectedInitializing -> "Initializing ExecuTorch Runtime..."
+                                    isSelectedFailed -> "Model Initialization / Inference Error"
+                                    else -> "Model Installed (Inactive)"
+                                },
                                 fontWeight = FontWeight.Bold,
-                                color = if (isCurrentSelectedActive) Color(0xFF2E7D32) else MaterialTheme.colorScheme.secondary
+                                color = when {
+                                    isSelectedActive -> Color(0xFF2E7D32)
+                                    isSelectedFailed -> MaterialTheme.colorScheme.error
+                                    isSelectedInitializing -> Color(0xFFEF6C00)
+                                    else -> MaterialTheme.colorScheme.secondary
+                                }
                             )
                         }
 
                         Text(
-                            text = if (isCurrentSelectedActive) {
-                                "${selectedCatalogEntry.displayName} is currently active and powering on-device tutoring."
-                            } else {
-                                "${selectedCatalogEntry.displayName} is installed on local storage. Tap below to switch to this model."
+                            text = when {
+                                isSelectedActive -> "${selectedCatalogEntry.displayName} is loaded into memory, verified via smoke test, and powering on-device tutoring."
+                                isSelectedInitializing -> "Loading weights into native ExecuTorch XNNPACK CPU memory..."
+                                isSelectedFailed -> engineError ?: "Native initialization error occurred during model setup. Check diagnostics."
+                                else -> "${selectedCatalogEntry.displayName} is installed on local storage. Tap below to initialize ExecuTorch and activate this model."
                             },
                             fontSize = 13.sp,
-                            color = if (isCurrentSelectedActive) Color(0xFF1B5E20) else MaterialTheme.colorScheme.onSecondaryContainer
+                            color = when {
+                                isSelectedActive -> Color(0xFF1B5E20)
+                                isSelectedFailed -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onSecondaryContainer
+                            }
                         )
 
-                        if (!isCurrentSelectedActive) {
-                            Button(
-                                onClick = {
-                                    appPreferences.setActiveModelId(selectedCatalogEntry.modelId)
-                                    activeModelId = selectedCatalogEntry.modelId
-                                    actionMessage = "Switched active model to ${selectedCatalogEntry.displayName}"
-                                },
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            ) {
-                                Icon(Icons.Default.SwapHoriz, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Switch to Active Model")
-                            }
-                        } else {
+                        if (isSelectedActive) {
                             Button(
                                 onClick = onModelReady,
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                                 modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) {
                                 Text("Continue with ${selectedCatalogEntry.displayName}")
+                            }
+                            OutlinedButton(
+                                onClick = onNavigateToDiagnostics,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Analytics, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open Model Diagnostics")
+                            }
+                        } else if (isSelectedFailed) {
+                            Button(
+                                onClick = {
+                                    learningViewModel?.initializeAndActivateModel { success, err ->
+                                        if (success) {
+                                            actionMessage = "Model initialized and verified successfully"
+                                        } else {
+                                            actionMessage = "Initialization error: $err"
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Retry Initialization")
+                            }
+                            OutlinedButton(
+                                onClick = onNavigateToDiagnostics,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Analytics, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("View Detailed Diagnostics")
+                            }
+                        } else if (isSelectedInitializing) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                        } else {
+                            // Verified / Installed but not yet active
+                            Button(
+                                onClick = {
+                                    appPreferences.setActiveModelId(selectedCatalogEntry.modelId)
+                                    activeModelId = selectedCatalogEntry.modelId
+                                    learningViewModel?.initializeAndActivateModel { success, err ->
+                                        if (success) {
+                                            actionMessage = "Switched to and activated ${selectedCatalogEntry.displayName}"
+                                        } else {
+                                            actionMessage = "Activation note: $err"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Icon(Icons.Default.Bolt, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Initialize & Activate ${selectedCatalogEntry.displayName}")
                             }
                         }
 
@@ -737,6 +831,8 @@ private fun ModelOptionCard(
     isSelected: Boolean,
     isInstalled: Boolean,
     isActive: Boolean,
+    isInitializing: Boolean = false,
+    isFailed: Boolean = false,
     isCompatible: Boolean,
     incompatibilityReason: String?,
     onClick: () -> Unit
@@ -744,19 +840,22 @@ private fun ModelOptionCard(
     val borderColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         isActive -> Color(0xFF2E7D32)
+        isFailed -> MaterialTheme.colorScheme.error
+        isInitializing -> Color(0xFFEF6C00)
         else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     }
 
     val backgroundColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
         isActive -> Color(0xFFE8F5E9).copy(alpha = 0.5f)
+        isFailed -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.surface
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(width = if (isSelected || isActive) 2.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(12.dp))
+            .border(width = if (isSelected || isActive || isFailed) 2.dp else 1.dp, color = borderColor, shape = RoundedCornerShape(12.dp))
             .clickable(enabled = true, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor)
@@ -821,6 +920,32 @@ private fun ModelOptionCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                } else if (isInitializing) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFEF6C00)
+                    ) {
+                        Text(
+                            text = "INITIALIZING",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                } else if (isFailed) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.error
+                    ) {
+                        Text(
+                            text = "FAILED",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onError,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }

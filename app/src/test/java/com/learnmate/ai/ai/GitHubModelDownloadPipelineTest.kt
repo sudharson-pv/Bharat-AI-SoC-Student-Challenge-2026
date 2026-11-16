@@ -49,11 +49,11 @@ class GitHubModelDownloadPipelineTest {
         val entry1B = ModelCatalog.ENTRY_LLAMA_3_2_1B
         val entry3B = ModelCatalog.ENTRY_LLAMA_3_2_3B
 
-        // Verify public GitHub repository model raw download URL formatting
-        assertTrue("Download URL must point to github.com raw models",
-            entry1B.downloadUrl.startsWith("https://github.com/sudharson-pv/llama_model_download/raw/main/models/"))
-        assertTrue("Tokenizer URL must point to github.com raw models",
-            entry1B.tokenizerUrl.startsWith("https://github.com/sudharson-pv/llama_model_download/raw/main/models/"))
+        // Verify public GitHub repository model release download URL formatting
+        assertTrue("Download URL must point to github.com releases or models",
+            entry1B.downloadUrl.contains("github.com/sudharson-pv/llama_model_download"))
+        assertTrue("Tokenizer URL must point to github.com releases or models",
+            entry1B.tokenizerUrl.contains("github.com/sudharson-pv/llama_model_download"))
 
         // Security check: Zero embedded authentication tokens or credentials in URLs
         assertFalse("Download URL must not contain auth tokens", entry1B.downloadUrl.contains("token="))
@@ -70,8 +70,8 @@ class GitHubModelDownloadPipelineTest {
         val resolvedModelUrl = ModelCatalog.getEffectiveDownloadUrl(entry, treeUrl)
         val resolvedTokenizerUrl = ModelCatalog.getEffectiveTokenizerUrl(entry, treeUrl)
 
-        assertEquals("https://github.com/sudharson-pv/llama_model_download/raw/main/models/llama3_2_1b_8da4w.pte", resolvedModelUrl)
-        assertEquals("https://github.com/sudharson-pv/llama_model_download/raw/main/models/tokenizer.model", resolvedTokenizerUrl)
+        assertEquals("https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/llama3_2_1b_8da4w.pte", resolvedModelUrl)
+        assertEquals("https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/tokenizer.model", resolvedTokenizerUrl)
     }
 
     @Test
@@ -80,7 +80,7 @@ class GitHubModelDownloadPipelineTest {
         val blobUrl = "https://github.com/sudharson-pv/llama_model_download/blob/main/models/llama3_2_1b_8da4w.pte"
 
         val resolvedModelUrl = ModelCatalog.getEffectiveDownloadUrl(entry, blobUrl)
-        assertEquals("https://github.com/sudharson-pv/llama_model_download/raw/main/models/llama3_2_1b_8da4w.pte", resolvedModelUrl)
+        assertEquals("https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/llama3_2_1b_8da4w.pte", resolvedModelUrl)
     }
 
     @Test

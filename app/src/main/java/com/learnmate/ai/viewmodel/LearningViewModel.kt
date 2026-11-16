@@ -142,6 +142,7 @@ class LearningViewModel(
     init {
         loadLearnerData()
         loadAllProfiles()
+        refreshModelStatus()
     }
 
     fun switchUser(userId: String) {
@@ -335,6 +336,42 @@ class LearningViewModel(
             learningRepository.toggleTaskCompletion(currentUserId, taskId, isCompleted)
             val updatedTasks = learningRepository.getStudyTasks(currentUserId)
             _studyTasksState.value = LearningUiState.Success(updatedTasks)
+        }
+    }
+
+    val modelAssetManager: com.learnmate.ai.ai.ModelAssetManager
+        get() = aiTutorRepository.assetManager
+
+    val modelEngine: com.learnmate.ai.ai.ExecuTorchLlamaEngine
+        get() = aiTutorRepository.engine
+
+    fun refreshModelStatus() {
+        viewModelScope.launch {
+            aiTutorRepository.engine.refreshModelPresenceState()
+        }
+    }
+
+    fun initializeAndActivateModel(onResult: ((Boolean, String?) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = aiTutorRepository.initializeModelAsync()
+            if (res.isSuccess) {
+                aiTutorRepository.setAiEnabled(true)
+                onResult?.invoke(true, null)
+            } else {
+                onResult?.invoke(false, res.exceptionOrNull()?.message ?: "Initialization failed")
+            }
+        }
+    }
+
+    fun runModelSmokeTest(onResult: ((Boolean, String?) -> Unit)? = null) {
+        viewModelScope.launch {
+            val res = aiTutorRepository.engine.runSmokeTest()
+            if (res.isSuccess) {
+                val metrics = res.getOrNull()
+                onResult?.invoke(true, "Smoke test passed (${metrics?.tokenCount} tokens, ${metrics?.tokensPerSecond} TPS, TTFT: ${metrics?.ttftMs}ms)")
+            } else {
+                onResult?.invoke(false, res.exceptionOrNull()?.message ?: "Smoke test failed")
+            }
         }
     }
 

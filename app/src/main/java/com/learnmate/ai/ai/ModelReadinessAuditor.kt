@@ -225,7 +225,11 @@ object ModelReadinessAuditor {
             )
             steps.add(StepAudit(7, "ExecuTorch Runtime Initialization", true, "Native LlmModule initialized and loaded into memory"))
         } catch (t: Throwable) {
-            val step = StepAudit(7, "ExecuTorch Runtime Initialization", false, "Initialization failed: ${t.javaClass.simpleName}: ${t.message}")
+            var actual = t
+            while (actual is java.lang.reflect.InvocationTargetException && actual.targetException != null) {
+                actual = actual.targetException
+            }
+            val step = StepAudit(7, "ExecuTorch Runtime Initialization", false, "Initialization failed: ${actual.javaClass.simpleName}: ${actual.message}")
             steps.add(step)
             return@withContext AuditResult(
                 isReady = false,
@@ -233,7 +237,7 @@ object ModelReadinessAuditor {
                 provenance = ModelProvenance.CRYPTOGRAPHICALLY_VERIFIED,
                 steps = steps,
                 failedStep = step,
-                failureReason = "Native ExecuTorch Runtime Initialization Failed: ${t.message}",
+                failureReason = "Native ExecuTorch Runtime Initialization Failed: ${actual.javaClass.simpleName}: ${actual.message}",
                 recoveryAction = "Verify device architecture and runtime compatibility"
             )
         }
@@ -267,7 +271,11 @@ object ModelReadinessAuditor {
             }
             steps.add(StepAudit(8, "Inference Smoke Test", true, "Successfully generated $tokensGenerated tokens"))
         } catch (t: Throwable) {
-            val step = StepAudit(8, "Inference Smoke Test", false, "Smoke test exception: ${t.javaClass.simpleName}: ${t.message}")
+            var actual = t
+            while (actual is java.lang.reflect.InvocationTargetException && actual.targetException != null) {
+                actual = actual.targetException
+            }
+            val step = StepAudit(8, "Inference Smoke Test", false, "Smoke test exception: ${actual.javaClass.simpleName}: ${actual.message}")
             steps.add(step)
             return@withContext AuditResult(
                 isReady = false,
@@ -275,7 +283,7 @@ object ModelReadinessAuditor {
                 provenance = ModelProvenance.RUNTIME_INITIALIZED,
                 steps = steps,
                 failedStep = step,
-                failureReason = "Inference Smoke Test Error: ${t.message}",
+                failureReason = "Inference Smoke Test Error: ${actual.javaClass.simpleName}: ${actual.message}",
                 recoveryAction = "Inspect native runtime logs and re-initialize"
             )
         }

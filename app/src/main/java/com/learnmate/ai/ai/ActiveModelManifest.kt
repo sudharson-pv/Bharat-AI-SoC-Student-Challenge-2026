@@ -39,17 +39,29 @@ object ActiveModelManifest {
 }
 
 /**
- * Truthful model runtime states distinguishing physical file presence
- * from validated readiness and native LlmModule execution.
+ * Authoritative model runtime states distinguishing physical file presence,
+ * cryptographic verification, native runtime initialization, and smoke test execution.
  */
 enum class ModelRuntimeState {
-    MODEL_MISSING,
-    MODEL_READY,
-    LOADING_MODEL,
-    MODEL_LOADED,
+    NOT_INSTALLED,
+    DOWNLOADING,
+    DOWNLOAD_FAILED,
+    DOWNLOADED,
+    VERIFYING,
+    VERIFIED,
+    INITIALIZING,
+    INITIALIZATION_FAILED,
     READY,
-    GENERATING,
-    COMPLETED,
-    MODEL_ERROR
+    INFERENCE_FAILED;
+
+    companion object {
+        @JvmField val MODEL_MISSING = NOT_INSTALLED
+        @JvmField val LOADING_MODEL = INITIALIZING
+        @JvmField val MODEL_LOADED = VERIFIED
+        @JvmField val MODEL_READY = VERIFIED
+        @JvmField val MODEL_ERROR = INITIALIZATION_FAILED
+        @JvmField val GENERATING = READY
+        @JvmField val COMPLETED = READY
+    }
 }
 

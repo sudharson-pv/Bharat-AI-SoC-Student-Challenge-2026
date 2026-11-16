@@ -59,8 +59,8 @@ object ModelManifestRegistry {
         minApiLevel = 28, // Android 9.0 Pie+
         minRamBytes = 3_500L * 1024L * 1024L, // 3.5 GiB minimum
         minStorageBytes = 2_500L * 1024L * 1024L, // 2.5 GiB free storage minimum
-        defaultDownloadUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/llama3_2_1b_8da4w.pte",
-        defaultTokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/tokenizer.model"
+        defaultDownloadUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/llama3_2_1b_8da4w.pte",
+        defaultTokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/tokenizer.model"
     )
 
     /**

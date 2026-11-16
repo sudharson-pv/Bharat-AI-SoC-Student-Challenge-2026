@@ -125,8 +125,8 @@ object ModelCatalog {
         minStorageBytes = 2_500L * 1024L * 1024L, // 2.5 GiB
         license = "Meta Llama 3.2 Community License Agreement",
         licenseAttribution = "Built with Meta Llama 3.2. Copyright (c) Meta Platforms, Inc.",
-        downloadUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/llama3_2_1b_8da4w.pte",
-        tokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/tokenizer.model",
+        downloadUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/llama3_2_1b_8da4w.pte",
+        tokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/tokenizer.model",
         signedManifest = SignedModelManifest(
             formatVersion = "1.0.0",
             manifestVersion = 1,
@@ -273,14 +273,21 @@ object ModelCatalog {
     }
 
     /**
-     * Normalizes a GitHub URL (e.g. tree/main/models or blob/main/models) into a direct raw download endpoint.
+     * Normalizes a GitHub URL (e.g. tree/main/models or blob/main/models or raw LFS pointers)
+     * into the direct binary release asset endpoint.
      */
     fun normalizeGitHubUrl(url: String): String {
-        return url
-            .replace("github.com/sudharson-pv/llama_model_download/tree/main/", "github.com/sudharson-pv/llama_model_download/raw/main/")
-            .replace("github.com/sudharson-pv/llama_model_download/blob/main/", "github.com/sudharson-pv/llama_model_download/raw/main/")
-            .replace("/tree/main/", "/raw/main/")
-            .replace("/blob/main/", "/raw/main/")
+        var u = url
+        if (u.contains("sudharson-pv/llama_model_download")) {
+            return u
+                .replace("raw.githubusercontent.com/sudharson-pv/llama_model_download/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
+                .replace("github.com/sudharson-pv/llama_model_download/tree/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
+                .replace("github.com/sudharson-pv/llama_model_download/raw/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
+                .replace("github.com/sudharson-pv/llama_model_download/blob/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
+        }
+        return u
+            .replace("/tree/main/", "/releases/download/llama-3.2-1b-v1/")
+            .replace("/blob/main/", "/releases/download/llama-3.2-1b-v1/")
     }
 
     /**

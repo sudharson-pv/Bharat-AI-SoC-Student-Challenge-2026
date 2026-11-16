@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.learnmate.ai.R
+import com.learnmate.ai.ai.ModelRuntimeState
 import com.learnmate.ai.domain.lifecycle.BackupResult
 import com.learnmate.ai.domain.lifecycle.RestoreResult
 import com.learnmate.ai.localization.AppLanguage
@@ -38,6 +39,7 @@ fun SettingsScreen(
     onToggleDarkTheme: (Boolean) -> Unit,
     onNavigateToLanguage: () -> Unit,
     onNavigateToModelDownload: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -229,9 +231,9 @@ fun SettingsScreen(
                 }
             }
 
-            // Section 1.5: On-Device AI Engine & Model Management (Gate 6.16.3)
-            val modelFile = remember { File(context.filesDir, "models/llama3_2_1b_8da4w.pte") }
-            val isModelInstalled = remember { modelFile.exists() && modelFile.length() > 100 * 1024 * 1024 }
+            // Section 1.5: On-Device AI Engine & Model Management (Unified Gate 6.16.5)
+            val runtimeState by learningViewModel.runtimeState.collectAsState()
+            val engineError by learningViewModel.engineError.collectAsState()
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -257,12 +259,26 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Icon(
-                                imageVector = if (isModelInstalled) Icons.Default.Psychology else Icons.Default.CloudDownload,
+                                imageVector = when (runtimeState) {
+                                    ModelRuntimeState.READY -> Icons.Default.Psychology
+                                    ModelRuntimeState.VERIFIED -> Icons.Default.FileDownloadDone
+                                    ModelRuntimeState.INITIALIZING -> Icons.Default.HourglassTop
+                                    ModelRuntimeState.INITIALIZATION_FAILED, ModelRuntimeState.INFERENCE_FAILED -> Icons.Default.Error
+                                    ModelRuntimeState.DOWNLOADING, ModelRuntimeState.VERIFYING -> Icons.Default.CloudDownload
+                                    else -> Icons.Default.CloudDownload
+                                },
                                 contentDescription = null,
-                                tint = if (isModelInstalled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(24.dp)
+                                tint = when (runtimeState) {
+                                    ModelRuntimeState.READY -> Color(0xFF2E7D32)
+                                    ModelRuntimeState.VERIFIED -> MaterialTheme.colorScheme.primary
+                                    ModelRuntimeState.INITIALIZING -> Color(0xFFEF6C00)
+                                    ModelRuntimeState.INITIALIZATION_FAILED, ModelRuntimeState.INFERENCE_FAILED -> MaterialTheme.colorScheme.error
+                                    ModelRuntimeState.DOWNLOADING, ModelRuntimeState.VERIFYING -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.tertiary
+                                },
+                                modifier = Modifier.size(26.dp)
                             )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
@@ -273,12 +289,25 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (isModelInstalled)
-                                        "Installed (718 MB) • Running locally via ExecuTorch XNNPACK CPU"
-                                    else
-                                        "Not Installed • Tap to download model for offline AI generation",
+                                    text = when (runtimeState) {
+                                        ModelRuntimeState.READY -> "Installed & Active • Powered by on-device Llama 3.2 1B (XNNPACK CPU)"
+                                        ModelRuntimeState.VERIFIED -> "Installed (Inactive) • Tap to initialize ExecuTorch runtime"
+                                        ModelRuntimeState.INITIALIZING -> "Initializing ExecuTorch runtime and native JNI..."
+                                        ModelRuntimeState.INITIALIZATION_FAILED -> "Initialization Failed: ${engineError ?: "Native runtime error"} • Tap for diagnostics"
+                                        ModelRuntimeState.INFERENCE_FAILED -> "Inference Error: ${engineError ?: "Smoke test produced 0 tokens"} • Tap for diagnostics"
+                                        ModelRuntimeState.DOWNLOADING -> "Downloading AI Model... • Tap to view progress"
+                                        ModelRuntimeState.VERIFYING -> "Verifying cryptographic SHA-256 checksums..."
+                                        else -> "Not Installed • Tap to download model for offline AI generation"
+                                    },
                                     fontSize = 12.sp,
-                                    color = if (isModelInstalled) Color(0xFF2E7D32) else MaterialTheme.colorScheme.tertiary
+                                    color = when (runtimeState) {
+                                        ModelRuntimeState.READY -> Color(0xFF2E7D32)
+                                        ModelRuntimeState.VERIFIED -> MaterialTheme.colorScheme.primary
+                                        ModelRuntimeState.INITIALIZING -> Color(0xFFEF6C00)
+                                        ModelRuntimeState.INITIALIZATION_FAILED, ModelRuntimeState.INFERENCE_FAILED -> MaterialTheme.colorScheme.error
+                                        ModelRuntimeState.DOWNLOADING, ModelRuntimeState.VERIFYING -> MaterialTheme.colorScheme.primary
+                                        else -> MaterialTheme.colorScheme.tertiary
+                                    }
                                 )
                             }
                         }
@@ -287,6 +316,47 @@ fun SettingsScreen(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+
+                // Diagnostics Quick Link
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToDiagnostics() },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Analytics,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Model Diagnostics & Hardware Audit",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
