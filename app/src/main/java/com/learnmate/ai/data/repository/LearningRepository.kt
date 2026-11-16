@@ -1371,7 +1371,15 @@ class LearningRepository(
         }
 
         val finalNodeIds = if (profile != null && profile.targetDomain.isNotBlank() && !profile.targetDomain.equals("General", ignoreCase = true)) {
-            if (candidateNodeIds.isNotEmpty()) candidateNodeIds.toList() else com.learnmate.ai.data.content.StarterCurriculumCatalog.getSupportedNodeIds()
+            if (candidateNodeIds.isNotEmpty()) {
+                candidateNodeIds.toList()
+            } else {
+                // For unknown or newly supported domains with no pre-existing catalog nodes:
+                // Strictly scope to active roadmap steps if available, or return empty list (clean empty state).
+                // Never substitute unrelated subjects from other education domains!
+                val activeSteps = roadmap?.steps?.map { it.id } ?: emptyList()
+                if (activeSteps.isNotEmpty()) activeSteps else emptyList()
+            }
         } else {
             val supported = com.learnmate.ai.data.content.StarterCurriculumCatalog.getSupportedNodeIds()
             (candidateNodeIds + supported).distinct().toList()

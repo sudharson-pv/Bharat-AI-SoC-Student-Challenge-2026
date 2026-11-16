@@ -232,7 +232,9 @@ data class PersonalisedRoadmap(
     val subdomain: String,
     val goal: String,
     val targetRole: String,
-    val steps: List<RoadmapStep>
+    val steps: List<RoadmapStep>,
+    val profileFingerprint: String = "",
+    val provenance: com.learnmate.ai.domain.provenance.AiOperationProvenance? = null
 )
 
 data class StudyTask(
@@ -246,7 +248,8 @@ data class StudyTask(
     val durationMinutes: Int,
     val isCompleted: Boolean = false,
     val completedAtEpochMs: Long? = null,
-    val notes: String = ""
+    val notes: String = "",
+    val provenance: com.learnmate.ai.domain.provenance.AiOperationProvenance? = null
 )
 
 data class AssessmentQuestion(
@@ -257,7 +260,9 @@ data class AssessmentQuestion(
     val questionText: String,
     val options: List<String>,
     val correctIndex: Int,
-    val explanation: String
+    val explanation: String,
+    val isAiGenerated: Boolean = false,
+    val provenance: com.learnmate.ai.domain.provenance.AiOperationProvenance? = null
 ) {
     val isValid: Boolean get() =
         id.isNotBlank() &&
@@ -306,7 +311,9 @@ data class SkillGapReport(
     val correctCount: Int,
     val strengths: List<String>,
     val weaknesses: List<String>,
-    val skillGaps: List<SkillGapItem>
+    val skillGaps: List<SkillGapItem>,
+    val profileFingerprint: String = "",
+    val provenance: com.learnmate.ai.domain.provenance.AiOperationProvenance? = null
 )
 
 data class ChatSession(

@@ -74,10 +74,12 @@ fun DiagnosticAssessmentScreen(
         }
     }
 
-    // Stable randomized options per question
-    val shuffledQuestions = remember(questions) {
+    val assessmentSessionSeed = remember { java.util.UUID.randomUUID().mostSignificantBits }
+
+    // Session-based randomized options per question (persisted stably for this active assessment session)
+    val shuffledQuestions = remember(questions, assessmentSessionSeed) {
         questions.map { q ->
-            val rng = Random(q.id.hashCode().toLong())
+            val rng = Random(assessmentSessionSeed xor q.id.hashCode().toLong())
             val shuffled = q.options.mapIndexed { idx, optText ->
                 ShuffledOption(
                     id = "opt_${idx}",
@@ -198,10 +200,29 @@ fun DiagnosticAssessmentScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                SuggestionChip(
-                                    onClick = {},
-                                    label = { Text(currentQuestion.topic, fontSize = 11.sp) }
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val isAi = currentQuestion.isAiGenerated
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isAi) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
+                                        border = BorderStroke(1.dp, if (isAi) Color(0xFF4CAF50) else Color(0xFFFFB74D))
+                                    ) {
+                                        Text(
+                                            text = if (isAi) "AI Generated & Validated" else "Deterministic Fallback",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (isAi) Color(0xFF2E7D32) else Color(0xFFE65100),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    SuggestionChip(
+                                        onClick = {},
+                                        label = { Text(currentQuestion.topic, fontSize = 11.sp) }
+                                    )
+                                }
                             }
 
                             // Question Card

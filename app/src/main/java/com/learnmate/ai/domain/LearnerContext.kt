@@ -1,5 +1,7 @@
 package com.learnmate.ai.domain
 
+import java.security.MessageDigest
+
 /**
  * Shared, versioned context representing the active learner's state, goals,
  * preferences, and historical learning progress across all LearnMate AI features.
@@ -7,13 +9,14 @@ package com.learnmate.ai.domain
  * Ensures:
  * - Single source of truth for learner profile, goals, and constraints.
  * - Strict multi-learner and track isolation.
- * - Version tracking for stale diagnostic and roadmap detection.
+ * - Cryptographic SHA-256 fingerprinting for stale diagnostic and roadmap detection.
  * - Separation between AI prompt context and deterministic execution state.
  */
 data class LearnerContext(
     val learnerId: String,
     val activeTrackId: String,
     val profileVersion: Int = 1,
+    val profileFingerprint: String = "",
     val modelVersion: String = "Meta-Llama-3.2-1B-Instruct-q8da4w",
     val educationalLevel: String,
     val domain: String,
@@ -34,17 +37,44 @@ data class LearnerContext(
 ) {
     /**
      * Returns true if the provided report was generated for a different profile version
-     * (e.g. domain, branch, education level, or primary goal changed).
+     * (e.g. domain, branch, specialization, education level, knowledge level, primary goal, subjects, or language changed).
      */
     fun isDiagnosticStale(report: SkillGapReport?): Boolean {
         if (report == null) return true
-        val currentFingerprint = computeFingerprint(domain, departmentOrBranch, educationalLevel, primaryLearningGoal)
+        if (report.profileFingerprint.isNotBlank() && profileFingerprint.isNotBlank()) {
+            return !report.profileFingerprint.equals(profileFingerprint, ignoreCase = true)
+        }
         val reportDomainMatch = report.domain.equals(domain, ignoreCase = true)
         val reportSubdomainMatch = report.subdomain.isBlank() || report.subdomain.equals(departmentOrBranch, ignoreCase = true)
         return !reportDomainMatch || !reportSubdomainMatch
     }
 
     companion object {
+        fun computeSha256Fingerprint(
+            domain: String,
+            branch: String,
+            specialization: String,
+            educationLevel: String,
+            currentKnowledgeLevel: String,
+            primaryGoal: String,
+            relevantSubjects: List<String>,
+            preferredLanguage: String
+        ): String {
+            val raw = listOf(
+                domain.trim().lowercase(),
+                branch.trim().lowercase(),
+                specialization.trim().lowercase(),
+                educationLevel.trim().lowercase(),
+                currentKnowledgeLevel.trim().lowercase(),
+                primaryGoal.trim().lowercase(),
+                relevantSubjects.map { it.trim().lowercase() }.sorted().joinToString(","),
+                preferredLanguage.trim().lowercase()
+            ).joinToString("|")
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hashBytes = digest.digest(raw.toByteArray(Charsets.UTF_8))
+            return hashBytes.joinToString("") { "%02x".format(it) }
+        }
+
         fun computeFingerprint(
             domain: String,
             branch: String,
@@ -62,7 +92,7 @@ data class LearnerContext(
             pendingActivities: List<String> = emptyList()
         ): LearnerContext {
             val effTrackId = trackId ?: "track_${profile.userId}_default"
-            val fingerprint = computeFingerprint(
+            val legacyFingerprint = computeFingerprint(
                 domain = profile.targetDomain,
                 branch = profile.subdomain,
                 level = profile.educationLevel.name,
@@ -74,10 +104,22 @@ data class LearnerContext(
                 subjects.add(profile.subdomain)
             }
 
+            val sha256Fingerprint = computeSha256Fingerprint(
+                domain = profile.targetDomain.ifBlank { "General Education" },
+                branch = profile.subdomain.ifBlank { profile.targetDomain },
+                specialization = profile.targetRole.ifBlank { profile.subdomain },
+                educationLevel = profile.educationLevel.name,
+                currentKnowledgeLevel = profile.currentLevel,
+                primaryGoal = profile.goal.ifBlank { "Master foundational concepts" },
+                relevantSubjects = subjects,
+                preferredLanguage = profile.preferredLanguageCode.ifBlank { "en" }
+            )
+
             return LearnerContext(
                 learnerId = profile.userId,
                 activeTrackId = effTrackId,
-                profileVersion = fingerprint,
+                profileVersion = legacyFingerprint,
+                profileFingerprint = sha256Fingerprint,
                 educationalLevel = profile.educationLevel.name,
                 domain = profile.targetDomain.ifBlank { "General Education" },
                 departmentOrBranch = profile.subdomain.ifBlank { profile.targetDomain },
