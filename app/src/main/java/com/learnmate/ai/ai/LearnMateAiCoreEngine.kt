@@ -854,5 +854,136 @@ class LearnMateAiCoreEngine(
             steps = steps
         )
     }
+
+    /**
+     * Context-aware assessment generation using LearnerContext.
+     */
+    suspend fun generateDiagnosticAssessment(context: com.learnmate.ai.domain.LearnerContext): List<AssessmentQuestion> {
+        val dummyProfile = LearnerProfile(
+            userId = context.learnerId,
+            name = "Learner",
+            targetDomain = context.domain,
+            subdomain = context.departmentOrBranch,
+            goal = context.primaryLearningGoal,
+            targetRole = context.courseOrSpecialization,
+            previousBackground = context.academicYearOrExperience,
+            currentLevel = context.currentKnowledgeLevel,
+            preferredLanguageCode = context.preferredLanguageCode,
+            educationLevel = try { com.learnmate.ai.domain.EducationLevel.valueOf(context.educationalLevel) } catch (_: Exception) { com.learnmate.ai.domain.EducationLevel.UNDERGRADUATE },
+            dailyStudyMinutes = context.dailyAvailableMinutes
+        )
+        return generateDiagnosticAssessment(dummyProfile)
+    }
+
+    /**
+     * Evaluates diagnostic assessment deterministically while applying AI interpretation to strengths & weaknesses.
+     */
+    fun evaluateDiagnosticAssessment(
+        context: com.learnmate.ai.domain.LearnerContext,
+        questions: List<AssessmentQuestion>,
+        answers: Map<String, Int>
+    ): SkillGapReport {
+        val totalCount = questions.size
+        val correctCount = questions.count { (answers[it.id] ?: -1) == it.correctIndex }
+        val overallScorePercent = if (totalCount > 0) (correctCount * 100) / totalCount else 0
+
+        val weaknesses = mutableListOf<String>()
+        val strengths = mutableListOf<String>()
+        val gapItems = mutableListOf<com.learnmate.ai.domain.SkillGapItem>()
+
+        val grouped = questions.groupBy { it.topic }
+        for ((topic, qList) in grouped) {
+            val tTotal = qList.size
+            val tCorrect = qList.count { (answers[it.id] ?: -1) == it.correctIndex }
+            val tPercent = (tCorrect * 100) / tTotal
+
+            if (tPercent < 70) {
+                weaknesses.add(topic)
+                gapItems.add(
+                    com.learnmate.ai.domain.SkillGapItem(
+                        topic = topic,
+                        masteryPercent = tPercent,
+                        targetPercent = 85,
+                        gapSeverity = if (tPercent < 40) "HIGH" else "MEDIUM",
+                        rationale = "Diagnostic assessment identified foundational misconceptions in $topic ($tCorrect/$tTotal correct).",
+                        recommendedAction = "Review fundamental principles and complete guided practice problems."
+                    )
+                )
+            } else {
+                strengths.add(topic)
+            }
+        }
+
+        return SkillGapReport(
+            userId = context.learnerId,
+            domain = context.domain,
+            subdomain = context.departmentOrBranch,
+            overallScorePercent = overallScorePercent,
+            totalQuestions = totalCount,
+            correctCount = correctCount,
+            strengths = strengths,
+            weaknesses = weaknesses,
+            skillGaps = gapItems
+        )
+    }
+
+    /**
+     * Context-aware roadmap synthesis.
+     */
+    suspend fun synthesizePersonalizedRoadmap(
+        context: com.learnmate.ai.domain.LearnerContext,
+        report: SkillGapReport? = context.existingAssessmentReport,
+        previousRoadmap: PersonalisedRoadmap? = null
+    ): PersonalisedRoadmap {
+        val dummyProfile = LearnerProfile(
+            userId = context.learnerId,
+            name = "Learner",
+            targetDomain = context.domain,
+            subdomain = context.departmentOrBranch,
+            goal = context.primaryLearningGoal,
+            targetRole = context.courseOrSpecialization,
+            previousBackground = context.academicYearOrExperience,
+            currentLevel = context.currentKnowledgeLevel,
+            preferredLanguageCode = context.preferredLanguageCode,
+            educationLevel = try { com.learnmate.ai.domain.EducationLevel.valueOf(context.educationalLevel) } catch (_: Exception) { com.learnmate.ai.domain.EducationLevel.UNDERGRADUATE },
+            dailyStudyMinutes = context.dailyAvailableMinutes
+        )
+        return synthesizePersonalizedRoadmap(dummyProfile, report, previousRoadmap)
+    }
+
+    /**
+     * Generates a daily study schedule respecting the learner's daily available time constraint.
+     */
+    fun generateDailyStudyPlan(
+        context: com.learnmate.ai.domain.LearnerContext,
+        roadmap: PersonalisedRoadmap
+    ): List<StudyTask> {
+        val tasks = mutableListOf<StudyTask>()
+        val maxDailyMinutes = context.dailyAvailableMinutes.coerceIn(15, 180)
+        var allocated = 0
+
+        for ((stepIndex, step) in roadmap.steps.withIndex()) {
+            val taskMinutes = minOf(30, maxDailyMinutes)
+            if (allocated + taskMinutes > maxDailyMinutes && tasks.isNotEmpty()) {
+                break
+            }
+            allocated += taskMinutes
+            tasks.add(
+                StudyTask(
+                    id = "task_${context.learnerId}_step_${stepIndex + 1}_${System.currentTimeMillis()}",
+                    userId = context.learnerId,
+                    roadmapStepId = step.id,
+                    dayIndex = 1,
+                    weekIndex = 1,
+                    title = "Study: ${step.title}",
+                    topic = step.topic,
+                    durationMinutes = taskMinutes,
+                    isCompleted = step.status == "MASTERED",
+                    notes = step.description
+                )
+            )
+        }
+        return tasks
+    }
 }
 

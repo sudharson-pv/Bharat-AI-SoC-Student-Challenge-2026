@@ -158,12 +158,59 @@ fun AiTutorScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val suggestions = listOf(
-                    "Explain PN Junction",
-                    "Why CMOS low power?",
-                    "What is WCAG AA contrast?",
-                    "Hooke's Law"
-                )
+                val domain = profile?.targetDomain?.lowercase() ?: ""
+                val branch = profile?.subdomain?.lowercase() ?: ""
+                val topic = initialTopic.ifBlank { profile?.currentTopic ?: "" }
+                val suggestions = when {
+                    domain.contains("finance") || domain.contains("mba") || branch.contains("finance") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Explain DCF Valuation",
+                        "Working Capital Cycle",
+                        "DuPont Analysis Framework",
+                        "NPV vs IRR Rule"
+                    )
+                    domain.contains("electronic") || domain.contains("vlsi") || branch.contains("vlsi") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Explain PN Junction",
+                        "Why CMOS low power?",
+                        "Static Timing Analysis setup/hold",
+                        "Euler Path in CMOS layout"
+                    )
+                    domain.contains("computer") || domain.contains("software") || domain.contains("ai") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Explain Binary Search Trees",
+                        "Time Complexity of QuickSort",
+                        "ACID vs BASE Properties",
+                        "Deadlock Prevention methods"
+                    )
+                    domain.contains("science") || domain.contains("physics") || domain.contains("chemistry") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Hooke's Law & Elasticity",
+                        "Exothermic vs Endothermic",
+                        "Newton's Third Law examples",
+                        "Photosynthesis dark reactions"
+                    )
+                    domain.contains("mechanical") || branch.contains("mechanical") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Otto vs Diesel Cycle",
+                        "Stress-Strain Curve explanation",
+                        "Bernoulli's Principle application",
+                        "Heat Exchanger LMTD"
+                    )
+                    domain.contains("civil") || branch.contains("civil") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Bending Moment & Shear Force",
+                        "Portland Cement hydration",
+                        "Soil Compaction vs Consolidation",
+                        "Truss Method of Joints"
+                    )
+                    domain.contains("medicine") || domain.contains("health") || branch.contains("biomed") -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Action Potential propagation",
+                        "Cardiac Cycle phases",
+                        "Gram Positive vs Negative bacteria",
+                        "Mechanism of Enzyme inhibition"
+                    )
+                    else -> listOf(
+                        if (topic.isNotBlank()) "Explain $topic" else "Explain key concepts",
+                        "Practical applications in ${profile?.targetDomain ?: "this subject"}",
+                        "Important formulas and definitions",
+                        "Common exam questions"
+                    )
+                }
                 suggestions.forEach { prompt ->
                     SuggestionChip(
                         onClick = {

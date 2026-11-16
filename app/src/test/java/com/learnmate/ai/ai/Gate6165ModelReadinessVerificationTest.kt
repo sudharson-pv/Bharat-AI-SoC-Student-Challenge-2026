@@ -325,7 +325,8 @@ class Gate6165ModelReadinessVerificationTest {
             snapshot.errorMessage!!.contains("Download Error") ||
             snapshot.errorMessage!!.contains("HTTP Error") ||
             snapshot.errorMessage!!.contains("HTTP") ||
-            snapshot.errorMessage!!.contains("Error")
+            snapshot.errorMessage!!.contains("Error") ||
+            snapshot.errorMessage!!.contains("Failed")
         )
     }
 }

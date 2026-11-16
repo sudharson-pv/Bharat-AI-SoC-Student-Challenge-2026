@@ -135,7 +135,7 @@ object LearningAnalyticsEngine {
         val revisionCompletionRate = if (totalReviewsDueOrCompleted > 0) {
             roundToSingleDecimal((completedReviewsCount.toDouble() / totalReviewsDueOrCompleted.toDouble()) * 100.0)
         } else {
-            100.0
+            0.0
         }
 
         // 8. Daily Streaks

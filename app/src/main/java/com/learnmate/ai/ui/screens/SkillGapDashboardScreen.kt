@@ -796,7 +796,8 @@ private fun AnalyticsTabContent(
                 ) {
                     Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Revision Rate", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                        Text("${report.revisionCompletionRate}%", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                        val revDisplay = if (report.revisionCompletionRate > 0.0) "${report.revisionCompletionRate}%" else "N/A"
+                        Text(revDisplay, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (report.revisionCompletionRate > 0.0) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Card(

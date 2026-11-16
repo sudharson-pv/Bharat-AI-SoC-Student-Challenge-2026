@@ -219,7 +219,8 @@ class AiTutorRepository(
         for (m in history) {
             val role = if (m.senderRole == "USER") "user" else "assistant"
             historyBuilder.append("<|start_header_id|>$role<|end_header_id|>\n\n")
-            historyBuilder.append(m.text.take(200)) // Cap past turn length
+            val cleanHistoryText = m.text.substringBefore("\n\n*This explanation is generated").take(200)
+            historyBuilder.append(cleanHistoryText)
             historyBuilder.append("<|eot_id|>")
         }
 

@@ -48,7 +48,9 @@ data class DailyStudyPlan(
     val allocatedMinutes: Int,
     val tasks: List<PlannedStudyTask>,
     val overdueRevisionCount: Int,
-    val planSummary: String
+    val planSummary: String,
+    val isOvercommitted: Boolean = allocatedMinutes > targetDailyMinutes,
+    val overcommittedMinutes: Int = maxOf(0, allocatedMinutes - targetDailyMinutes)
 )
 
 data class WeeklyStudyPlan(

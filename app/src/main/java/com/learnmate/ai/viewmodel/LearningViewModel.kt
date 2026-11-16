@@ -280,11 +280,16 @@ class LearningViewModel(
                 val currentTrackId = _activeTrack.value?.trackId ?: "track_${profile.userId}_default"
                 val report = learningRepository.submitAssessment(profile, questions, answers, currentTrackId)
 
-                // If AI Core Engine is active, synthesize personalized AI roadmap
+                // If AI Core Engine is active, synthesize personalized AI roadmap and daily study plan
                 aiCoreEngine?.let { engine ->
                     try {
                         val aiRoadmap = engine.synthesizePersonalizedRoadmap(profile, report)
                         learningRepository.saveRoadmap(aiRoadmap, currentTrackId)
+                        val learnerCtx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile, currentTrackId, report)
+                        val aiTasks = engine.generateDailyStudyPlan(learnerCtx, aiRoadmap)
+                        if (aiTasks.isNotEmpty()) {
+                            learningRepository.saveStudyTasks(aiTasks, currentTrackId)
+                        }
                     } catch (_: Exception) {
                         // Fall back cleanly to deterministic roadmap generated in submitAssessment
                     }

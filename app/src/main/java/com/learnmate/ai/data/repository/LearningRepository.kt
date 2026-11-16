@@ -591,6 +591,33 @@ class LearningRepository(
                 totalQuestions = total,
                 topicTitle = topic
             )
+
+            // Seed Spaced Repetition for incorrect answers or weak topics
+            if (correct < total) {
+                try {
+                    initializeSpacedRepetitionForTopic(
+                        trackId = trackId,
+                        userId = profile.userId,
+                        nodeId = matchedNodeId,
+                        topicTitle = topic,
+                        discipline = profile.targetDomain,
+                        completionEpochMs = System.currentTimeMillis()
+                    )
+                } catch (_: Exception) {}
+            }
+        }
+
+        for (gap in report.skillGaps) {
+            try {
+                initializeSpacedRepetitionForTopic(
+                    trackId = trackId,
+                    userId = profile.userId,
+                    nodeId = gap.topic.lowercase().replace(" ", "_"),
+                    topicTitle = gap.topic,
+                    discipline = profile.targetDomain,
+                    completionEpochMs = System.currentTimeMillis()
+                )
+            } catch (_: Exception) {}
         }
 
         // Update profile status
@@ -1316,8 +1343,41 @@ class LearningRepository(
         trackId: String,
         userId: String
     ): List<TopicMasteryResult> = withContext(ioDispatcher) {
-        val supportedIds = com.learnmate.ai.data.content.StarterCurriculumCatalog.getSupportedNodeIds()
-        supportedIds.map { nodeId ->
+        val roadmap = getRoadmap(userId) ?: getRoadmapForTrack(trackId)
+        val profile = getProfile(userId)
+        val candidateNodeIds = mutableSetOf<String>()
+
+        // Include any topics the user has actively attempted or revised
+        val attempts = getAllAssessmentAttemptsForTrack(trackId, userId)
+        candidateNodeIds.addAll(attempts.map { it.nodeId })
+
+        if (roadmap != null && roadmap.steps.isNotEmpty()) {
+            candidateNodeIds.addAll(roadmap.steps.map { it.id })
+        }
+
+        if (profile != null && profile.targetDomain.isNotBlank() && !profile.targetDomain.equals("General", ignoreCase = true)) {
+            val allNodes = (dao?.getAllCurriculumNodes() ?: inMemoryCurriculumNodes).ifEmpty {
+                CurriculumEngine.getUniversalBaselineNodes()
+            }
+            val domainNodes = allNodes.filter { node ->
+                node.code.contains(profile.targetDomain, ignoreCase = true) ||
+                node.title.contains(profile.targetDomain, ignoreCase = true) ||
+                (profile.subdomain.isNotBlank() && node.title.contains(profile.subdomain, ignoreCase = true)) ||
+                (profile.targetDomain.contains("Engineering", ignoreCase = true) && (node.code.startsWith("ENG") || node.code.startsWith("DIP_EE"))) ||
+                (profile.targetDomain.contains("Management", ignoreCase = true) && node.code.startsWith("MGMT")) ||
+                (profile.targetDomain.contains("Science", ignoreCase = true) && (node.code.startsWith("SCI") || node.code.startsWith("CBSE")))
+            }.map { it.nodeId }
+            candidateNodeIds.addAll(domainNodes)
+        }
+
+        val finalNodeIds = if (profile != null && profile.targetDomain.isNotBlank() && !profile.targetDomain.equals("General", ignoreCase = true)) {
+            if (candidateNodeIds.isNotEmpty()) candidateNodeIds.toList() else com.learnmate.ai.data.content.StarterCurriculumCatalog.getSupportedNodeIds()
+        } else {
+            val supported = com.learnmate.ai.data.content.StarterCurriculumCatalog.getSupportedNodeIds()
+            (candidateNodeIds + supported).distinct().toList()
+        }
+
+        finalNodeIds.map { nodeId ->
             getTopicMastery(trackId, userId, nodeId)
         }
     }
