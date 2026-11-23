@@ -197,6 +197,128 @@ fun UniversalProfileScreen(
                 }
             }
 
+            // PRIMARY: Specific Focus Area & Target Outcome Section
+            val ambiguity = remember(subdomain) {
+                com.learnmate.ai.domain.focus.FocusAreaIntelligence.checkAmbiguity(subdomain)
+            }
+            val focusSuggestions = remember(targetDomain) {
+                com.learnmate.ai.domain.focus.FocusAreaIntelligence.getSuggestedFocusAreasForDomain(targetDomain)
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "PRIMARY: Specific Focus Area & Outcome",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Text(
+                        text = "Your diagnostic assessment, roadmap milestones, daily lessons, and YouTube videos are primarily generated from your Specific Focus Area, not the broad domain.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = subdomain,
+                        onValueChange = { subdomain = it },
+                        label = { Text("Specific Focus Area (Primary Content Driver)") },
+                        placeholder = { Text("e.g. Analog VLSI, Digital VLSI, Frontend Development") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Suggested Focus Areas for the Domain
+                    if (focusSuggestions.isNotEmpty()) {
+                        Text(
+                            text = "Suggested Specializations:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(focusSuggestions) { suggestion ->
+                                val isSelected = subdomain.equals(suggestion, ignoreCase = true)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { subdomain = suggestion },
+                                    label = { Text(suggestion, fontSize = 11.sp) },
+                                    leadingIcon = if (isSelected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+
+                    // Ambiguity Detection Banner
+                    if (ambiguity != null && ambiguity.isAmbiguous) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "Clarification Needed: '${ambiguity.term}' is broad",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = ambiguity.clarificationPrompt,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(ambiguity.suggestedSubAreas) { sub ->
+                                        FilledTonalButton(
+                                            onClick = { subdomain = sub },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(sub, fontSize = 10.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = goal,
+                        onValueChange = { goal = it },
+                        label = { Text("Target Learning Outcome (Primary Goal)") },
+                        placeholder = { Text("e.g. Design CMOS analog building blocks") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = targetRole,
+                        onValueChange = { targetRole = it },
+                        label = { Text("Technical Specialization / Career Role") },
+                        placeholder = { Text("e.g. Analog Circuit Designer, Frontend Engineer") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            }
+
             // Education Level Selection
             Text(
                 text = stringResource(R.string.label_education_level_title),

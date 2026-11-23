@@ -14,13 +14,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -34,15 +39,28 @@ import com.learnmate.ai.R
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(onAnimationEnd: () -> Unit) {
+fun SplashScreen(
+    isProfileLoading: Boolean = false,
+    onAnimationEnd: () -> Unit
+) {
     val scale = remember { Animatable(0.8f) }
     val alpha = remember { Animatable(0f) }
+    val currentOnAnimationEnd by rememberUpdatedState(onAnimationEnd)
+
+    var isMinAnimationDone by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         scale.animateTo(1f, animationSpec = tween(600))
         alpha.animateTo(1f, animationSpec = tween(600))
-        delay(1200)
-        onAnimationEnd()
+        delay(600) // Ensure at least 1200ms total minimum branding display time
+        isMinAnimationDone = true
+    }
+
+    // Case D: Never navigate while profile is still asynchronously loading from Room DB
+    LaunchedEffect(isMinAnimationDone, isProfileLoading) {
+        if (isMinAnimationDone && !isProfileLoading) {
+            currentOnAnimationEnd()
+        }
     }
 
     Surface(

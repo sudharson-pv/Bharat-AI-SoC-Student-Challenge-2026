@@ -54,6 +54,11 @@ fun AiTutorScreen(
     val isGenerating by learningViewModel.isGenerating.collectAsState()
     val streamingDelta by learningViewModel.streamingDelta.collectAsState()
 
+    val activeModelId = learningViewModel.appPreferences?.getActiveModelId() ?: com.learnmate.ai.ai.ActiveModelManifest.MODEL_ID
+    val activeModelName = remember(activeModelId) {
+        com.learnmate.ai.ai.ModelCatalog.ALL_ENTRIES.firstOrNull { it.modelId == activeModelId }?.displayName ?: "Meta Llama 3.2"
+    }
+
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -103,7 +108,7 @@ fun AiTutorScreen(
                             fontSize = 18.sp
                         )
                         Text(
-                            text = if (isAiEnabled) "On-Device Llama 3.2 1B (8da4w)" else "Verified Textbook Mode",
+                            text = if (isAiEnabled) "On-Device $activeModelName" else "Verified Textbook Mode",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                         )
@@ -233,7 +238,7 @@ fun AiTutorScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(chatMessages, key = { it.messageId }) { msg ->
-                    ChatBubbleItem(message = msg)
+                    ChatBubbleItem(message = msg, activeModelName = activeModelName)
                 }
 
                 // Streaming indicator
@@ -326,7 +331,16 @@ fun AiTutorScreen(
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions(
                             capitalization = KeyboardCapitalization.Sentences,
-                            imeAction = ImeAction.Default
+                            imeAction = ImeAction.Send
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onSend = {
+                                val q = inputText.trim()
+                                if (q.isNotBlank() && !isGenerating) {
+                                    learningViewModel.sendTutorQuestion(q)
+                                    inputText = ""
+                                }
+                            }
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -369,7 +383,7 @@ fun AiTutorScreen(
 }
 
 @Composable
-private fun ChatBubbleItem(message: ChatMessage) {
+private fun ChatBubbleItem(message: ChatMessage, activeModelName: String = "Meta Llama 3.2") {
     val isUser = message.senderRole == "USER"
     val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
     val formattedTime = remember(message.timestampEpochMs) { timeFormat.format(Date(message.timestampEpochMs)) }
@@ -410,7 +424,7 @@ private fun ChatBubbleItem(message: ChatMessage) {
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                             ) {
                                 Text(
-                                    text = stringResource(R.string.ai_tutor_tag_ai),
+                                    text = "AI Generated ($activeModelName)",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,

@@ -1,0 +1,10 @@
+## This file must *NOT* be checked into Version Control Systems,
+# as it contains information specific to your local configuration.
+#
+# Location of the SDK. This is only used by Gradle.
+# For example:
+# sdk.dir=C\:/Users/<YourUsername>/AppData/Local/Android/Sdk
+
+# Optional: YouTube Data API v3 key for curated video search
+# YOUTUBE_API_KEY=your_api_key_here
+# YOUTUBE_CERT_SHA1=0AB7DD30A89042C2CF6DADEF1EBA41775671B9AD

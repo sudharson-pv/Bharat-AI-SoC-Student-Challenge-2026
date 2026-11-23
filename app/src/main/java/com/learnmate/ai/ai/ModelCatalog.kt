@@ -160,8 +160,8 @@ object ModelCatalog {
         modelVersion = "1.0.0",
         parameterCount = "3B",
         modelFileName = "llama3_2_3b_8da4w.pte",
-        modelSizeBytes = 1_984_524_288L, // 1.85 GiB
-        modelSha256 = "7c89f5a3b2e1d0c4e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6",
+        modelSizeBytes = 2_379_319_808L, // 2.22 GiB
+        modelSha256 = "8369298bf081eeed73cf23ac9ec9113f508ca672cf11ba4cb876104f751298cb",
         tokenizerFileName = "tokenizer.model",
         tokenizerSizeBytes = 2_183_982L,
         tokenizerSha256 = "82e9d31979e92ab929cd544440f129d9ecd797b69e327f80f17e1c50d5551b55",
@@ -174,16 +174,16 @@ object ModelCatalog {
         minStorageBytes = 5_000L * 1024L * 1024L, // 5.0 GiB free storage
         license = "Meta Llama 3.2 Community License Agreement",
         licenseAttribution = "Built with Meta Llama 3.2. Copyright (c) Meta Platforms, Inc.",
-        downloadUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/llama3_2_3b_8da4w.pte",
-        tokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/raw/main/models/tokenizer.model",
+        downloadUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/llama3_2_3b_8da4w.pte",
+        tokenizerUrl = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/tokenizer.model",
         signedManifest = SignedModelManifest(
             formatVersion = "1.0.0",
             manifestVersion = 1,
             modelId = "meta-llama-3.2-3b-instruct-8da4w",
             modelVersion = "1.0.0",
             modelFileName = "llama3_2_3b_8da4w.pte",
-            modelSizeBytes = 1_984_524_288L,
-            modelSha256 = "7c89f5a3b2e1d0c4e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6",
+            modelSizeBytes = 2_379_319_808L,
+            modelSha256 = "8369298bf081eeed73cf23ac9ec9113f508ca672cf11ba4cb876104f751298cb",
             tokenizerFileName = "tokenizer.model",
             tokenizerSizeBytes = 2_183_982L,
             tokenizerSha256 = "82e9d31979e92ab929cd544440f129d9ecd797b69e327f80f17e1c50d5551b55",
@@ -198,7 +198,7 @@ object ModelCatalog {
             publisherKeyId = "learnmate_official_2026",
             signatureTimestampEpochSec = 1762400000L,
             expiresTimestampEpochSec = 2077680000L,
-            signatureBase64 = "ltuuSKumom2StryA47hXtvIbYJpS76nk7YDUon9b5nOHVjjU/pOph+C5BR7Pj5l/MgiHWQbMwl7YbrWpWEcnCw=="
+            signatureBase64 = "ebCvFv5BK/nIwfNTseykZVkonIXJq0I/okZYI/Bz4P1bFPDeGjd0MfWBh3RCabmYJBYzYU/FN94nmvh7SLXdAA=="
         )
     )
 
@@ -276,18 +276,29 @@ object ModelCatalog {
      * Normalizes a GitHub URL (e.g. tree/main/models or blob/main/models or raw LFS pointers)
      * into the direct binary release asset endpoint.
      */
-    fun normalizeGitHubUrl(url: String): String {
+    fun normalizeGitHubUrl(url: String, defaultRelease: String = "llama-3.2-1b-v1"): String {
         var u = url
+        val targetRelease = if (defaultRelease.isNotBlank()) {
+            defaultRelease
+        } else {
+            when {
+                u.contains("3b", ignoreCase = true) -> "llama-3.2-3b-v1"
+                u.contains("8b", ignoreCase = true) -> "llama-3.1-8b-v1"
+                else -> "llama-3.2-1b-v1"
+            }
+        }
         if (u.contains("sudharson-pv/llama_model_download")) {
+            u = u.replace(Regex("releases/download/llama-3\\.[0-9]-[0-9]b-v[0-9]"), "releases/download/$targetRelease")
             return u
-                .replace("raw.githubusercontent.com/sudharson-pv/llama_model_download/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
-                .replace("github.com/sudharson-pv/llama_model_download/tree/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
-                .replace("github.com/sudharson-pv/llama_model_download/raw/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
-                .replace("github.com/sudharson-pv/llama_model_download/blob/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1")
+                .replace("raw.githubusercontent.com/sudharson-pv/llama_model_download/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/$targetRelease")
+                .replace("github.com/sudharson-pv/llama_model_download/tree/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/$targetRelease")
+                .replace("github.com/sudharson-pv/llama_model_download/raw/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/$targetRelease")
+                .replace("github.com/sudharson-pv/llama_model_download/blob/main/models", "github.com/sudharson-pv/llama_model_download/releases/download/$targetRelease")
         }
         return u
-            .replace("/tree/main/", "/releases/download/llama-3.2-1b-v1/")
-            .replace("/blob/main/", "/releases/download/llama-3.2-1b-v1/")
+            .replace(Regex("releases/download/llama-3\\.[0-9]-[0-9]b-v[0-9]"), "releases/download/$targetRelease")
+            .replace("/tree/main/", "/releases/download/$targetRelease/")
+            .replace("/blob/main/", "/releases/download/$targetRelease/")
     }
 
     /**
@@ -295,16 +306,27 @@ object ModelCatalog {
      * Automatically normalizes GitHub repository tree/blob routes into raw downloadable stream endpoints.
      */
     fun getEffectiveDownloadUrl(entry: ModelCatalogEntry, customBaseUrl: String? = null): String {
+        val releaseTag = when (entry.parameterCount) {
+            "3B" -> "llama-3.2-3b-v1"
+            "8B" -> "llama-3.1-8b-v1"
+            else -> "llama-3.2-1b-v1"
+        }
         if (!customBaseUrl.isNullOrBlank()) {
-            val trimmed = customBaseUrl.trim().trimEnd('/')
-            val normalized = normalizeGitHubUrl(trimmed)
+            var trimmed = customBaseUrl.trim().trimEnd('/')
+            for (knownEntry in ALL_ENTRIES) {
+                if (trimmed.endsWith("/${knownEntry.modelFileName}")) {
+                    trimmed = trimmed.removeSuffix("/${knownEntry.modelFileName}")
+                    break
+                }
+            }
+            val normalized = normalizeGitHubUrl(trimmed, releaseTag)
             return if (normalized.endsWith("/${entry.modelFileName}")) {
                 normalized
             } else {
                 "$normalized/${entry.modelFileName}"
             }
         }
-        return normalizeGitHubUrl(entry.downloadUrl)
+        return normalizeGitHubUrl(entry.downloadUrl, releaseTag)
     }
 
     /**
@@ -312,15 +334,23 @@ object ModelCatalog {
      * Automatically normalizes GitHub repository tree/blob routes into raw downloadable stream endpoints.
      */
     fun getEffectiveTokenizerUrl(entry: ModelCatalogEntry, customBaseUrl: String? = null): String {
+        val releaseTag = when (entry.parameterCount) {
+            "3B" -> "llama-3.2-3b-v1"
+            "8B" -> "llama-3.1-8b-v1"
+            else -> "llama-3.2-1b-v1"
+        }
         if (!customBaseUrl.isNullOrBlank()) {
-            val trimmed = customBaseUrl.trim().trimEnd('/')
-            val normalized = normalizeGitHubUrl(trimmed)
+            var trimmed = customBaseUrl.trim().trimEnd('/')
+            if (trimmed.endsWith("/${entry.tokenizerFileName}")) {
+                trimmed = trimmed.removeSuffix("/${entry.tokenizerFileName}")
+            }
+            val normalized = normalizeGitHubUrl(trimmed, releaseTag)
             return if (normalized.endsWith("/${entry.tokenizerFileName}")) {
                 normalized
             } else {
                 "$normalized/${entry.tokenizerFileName}"
             }
         }
-        return normalizeGitHubUrl(entry.tokenizerUrl)
+        return normalizeGitHubUrl(entry.tokenizerUrl, releaseTag)
     }
 }

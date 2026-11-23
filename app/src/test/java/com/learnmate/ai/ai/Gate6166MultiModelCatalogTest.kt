@@ -54,7 +54,7 @@ class Gate6166MultiModelCatalogTest {
 
         // 3B Verification
         assertEquals(ModelCatalog.ENTRY_LLAMA_3_2_3B.modelId, entry3B.modelId)
-        assertEquals(1984524288L, entry3B.modelSizeBytes)
+        assertEquals(2379319808L, entry3B.modelSizeBytes)
         assertEquals(ActiveModelManifest.EXPECTED_TOKENIZER_SIZE_BYTES, entry3B.tokenizerSizeBytes)
         assertEquals("XNNPACK CPU", entry3B.targetBackend)
         assertEquals("arm64-v8a", entry3B.supportedAbi)
@@ -67,6 +67,42 @@ class Gate6166MultiModelCatalogTest {
         assertEquals("XNNPACK CPU", entry8B.targetBackend)
         assertEquals("arm64-v8a", entry8B.supportedAbi)
         assertFalse(entry8B.isDefaultRecommended)
+    }
+
+    @Test
+    fun testModelCatalog_urlResolution_preventsReleaseMismatch() {
+        val entry3B = ModelCatalog.ENTRY_LLAMA_3_2_3B
+
+        // 1. Default URL (null custom base)
+        val defaultUrl = entry3B.resolveDownloadUrl(null)
+        assertEquals(
+            "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/llama3_2_3b_8da4w.pte",
+            defaultUrl
+        )
+
+        // 2. Custom base pointing to 1B release must be dynamically remapped to 3B release
+        val stale1bBase = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1"
+        val resolvedFromStale = entry3B.resolveDownloadUrl(stale1bBase)
+        assertEquals(
+            "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/llama3_2_3b_8da4w.pte",
+            resolvedFromStale
+        )
+
+        // 3. Custom base pointing directly to 1B model filename must strip 1B filename and append 3B filename
+        val stale1bFileBase = "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-1b-v1/llama3_2_1b_8da4w.pte"
+        val resolvedFromFileBase = entry3B.resolveDownloadUrl(stale1bFileBase)
+        assertEquals(
+            "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/llama3_2_3b_8da4w.pte",
+            resolvedFromFileBase
+        )
+
+        // 4. Custom base pointing to tree/main/models
+        val treeBase = "https://github.com/sudharson-pv/llama_model_download/tree/main/models"
+        val resolvedFromTree = entry3B.resolveDownloadUrl(treeBase)
+        assertEquals(
+            "https://github.com/sudharson-pv/llama_model_download/releases/download/llama-3.2-3b-v1/llama3_2_3b_8da4w.pte",
+            resolvedFromTree
+        )
     }
 
     // =========================================================================
@@ -196,7 +232,7 @@ class Gate6166MultiModelCatalogTest {
         engine.selectCatalogEntry(entry3B)
 
         assertEquals(ModelCatalog.ENTRY_LLAMA_3_2_3B.modelId, engine.selectedEntry.value.modelId)
-        assertEquals(1984524288L, engine.downloadFlow.value.totalBytes)
+        assertEquals(2379319808L, engine.downloadFlow.value.totalBytes)
         assertTrue("Final model file name must match 3B", engine.finalModelFile.name == entry3B.modelFileName)
         assertTrue("Partial model file must match 3B .part quarantine", engine.partialModelFile.name == ".${entry3B.modelFileName}.part")
     }

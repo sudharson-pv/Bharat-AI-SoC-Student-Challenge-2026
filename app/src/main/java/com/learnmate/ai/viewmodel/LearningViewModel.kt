@@ -40,7 +40,14 @@ import com.learnmate.ai.domain.repetition.SpacedRepetitionItem
 import com.learnmate.ai.domain.analytics.LearnerAnalyticsReport
 import com.learnmate.ai.domain.planner.DailyStudyPlan
 import com.learnmate.ai.domain.planner.WeeklyStudyPlan
+import com.learnmate.ai.domain.AssignmentInstance
+import com.learnmate.ai.data.assessment.DeterministicAssessmentEngine
+import com.learnmate.ai.data.roadmap.DeterministicRoadmapEngine
+import com.learnmate.ai.data.taxonomy.TopicTaxonomy
 import com.learnmate.ai.domain.lifecycle.*
+import com.learnmate.ai.data.repository.YouTubeDataRepository
+import com.learnmate.ai.domain.youtube.YouTubeVideoItem
+import com.learnmate.ai.domain.youtube.VideoStudyNotes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,16 +62,49 @@ sealed class LearningUiState<out T> {
     data class Error(val message: String) : LearningUiState<Nothing>()
 }
 
+data class DayCheckpointResult(
+    val dayIndex: Int,
+    val isPassed: Boolean,
+    val scorePercent: Int,
+    val correctCount: Int,
+    val totalQuestions: Int,
+    val feedback: String,
+    val remedialAdvice: String? = null,
+    val attemptNumber: Int = 1,
+    val topic: String = ""
+)
+
+data class AssignmentResult(
+    val assignmentId: String,
+    val scorePercent: Int,
+    val feedback: String,
+    val isSubmitted: Boolean = true
+)
+
 class LearningViewModel(
     private val learningRepository: LearningRepository,
     private val aiTutorRepository: AiTutorRepository,
-    private val appPreferences: AppPreferences? = null,
-    val aiCoreEngine: LearnMateAiCoreEngine? = null
+    val appPreferences: AppPreferences? = null,
+    val aiCoreEngine: LearnMateAiCoreEngine? = null,
+    val youtubeRepository: YouTubeDataRepository = YouTubeDataRepository(learningRepository)
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "LearningViewModel"
+    }
 
     private val _currentUserId = MutableStateFlow(appPreferences?.getActiveUserId() ?: "default_learner")
     val currentUserId: String get() = _currentUserId.value
     val currentUserIdFlow: StateFlow<String> = _currentUserId.asStateFlow()
+
+    private val _youtubeVideosState = MutableStateFlow<LearningUiState<List<YouTubeVideoItem>>>(LearningUiState.Idle)
+    val youtubeVideosState: StateFlow<LearningUiState<List<YouTubeVideoItem>>> = _youtubeVideosState.asStateFlow()
+
+    private val _videoStudyNotesState = MutableStateFlow<Map<String, VideoStudyNotes>>(emptyMap())
+    val videoStudyNotesState: StateFlow<Map<String, VideoStudyNotes>> = _videoStudyNotesState.asStateFlow()
+
+    private val _isLoadingVideoNotes = MutableStateFlow(false)
+    val isLoadingVideoNotes: StateFlow<Boolean> = _isLoadingVideoNotes.asStateFlow()
 
     private val _allProfiles = MutableStateFlow<List<LearnerProfile>>(emptyList())
     val allProfiles: StateFlow<List<LearnerProfile>> = _allProfiles.asStateFlow()
@@ -132,6 +172,18 @@ class LearningViewModel(
     private val _coverageReport = MutableStateFlow<com.learnmate.ai.domain.outcomes.CurriculumCoverageReport?>(null)
     val coverageReport: StateFlow<com.learnmate.ai.domain.outcomes.CurriculumCoverageReport?> = _coverageReport.asStateFlow()
 
+    private val _checkpointResults = MutableStateFlow<Map<Int, DayCheckpointResult>>(emptyMap())
+    val checkpointResults: StateFlow<Map<Int, DayCheckpointResult>> = _checkpointResults.asStateFlow()
+
+    private val _unlockedDays = MutableStateFlow<Set<Int>>(setOf(1))
+    val unlockedDays: StateFlow<Set<Int>> = _unlockedDays.asStateFlow()
+
+    private val _completedAssignments = MutableStateFlow<Map<Int, AssignmentResult>>(emptyMap())
+    val completedAssignments: StateFlow<Map<Int, AssignmentResult>> = _completedAssignments.asStateFlow()
+
+    private val _weeklyStudyPlan = MutableStateFlow<WeeklyStudyPlan?>(null)
+    val weeklyStudyPlan: StateFlow<WeeklyStudyPlan?> = _weeklyStudyPlan.asStateFlow()
+
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
@@ -162,11 +214,26 @@ class LearningViewModel(
     fun loadLearnerData() {
         viewModelScope.launch {
             _profileState.value = LearningUiState.Loading
-            val profile = learningRepository.getProfile(currentUserId)
+            android.util.Log.d(TAG, "loadLearnerData: loading for currentUserId='$currentUserId'")
+            var profile = learningRepository.getProfile(currentUserId)
+            if (profile == null) {
+                val allProfiles = learningRepository.getAllProfiles()
+                android.util.Log.d(TAG, "loadLearnerData: profile for '$currentUserId' was null. Found ${allProfiles.size} total profiles in DB.")
+                if (allProfiles.isNotEmpty()) {
+                    val restoredProfile = allProfiles.first()
+                    android.util.Log.i(TAG, "loadLearnerData: restoring most recent profile userId='${restoredProfile.userId}', onboardingCompleted=${restoredProfile.onboardingCompleted}")
+                    profile = restoredProfile
+                    _currentUserId.value = restoredProfile.userId
+                    appPreferences?.setActiveUserId(restoredProfile.userId)
+                }
+            }
+
             if (profile != null) {
+                android.util.Log.i(TAG, "loadLearnerData: loaded profile for userId='${profile.userId}', domain='${profile.targetDomain}', onboardingCompleted=${profile.onboardingCompleted}")
                 _profileState.value = LearningUiState.Success(profile)
                 loadRoadmapAndTasks(profile.userId)
             } else {
+                android.util.Log.w(TAG, "loadLearnerData: no profile found in DB for currentUserId='$currentUserId'. State -> Empty")
                 _profileState.value = LearningUiState.Empty("No learner profile configured yet.")
             }
             loadTracks()
@@ -235,32 +302,185 @@ class LearningViewModel(
         }
     }
 
+    suspend fun createOrUpdateProfileAsync(profile: LearnerProfile) {
+        val previousProfile = (_profileState.value as? LearningUiState.Success)?.data
+        val domainChanged = previousProfile != null && !previousProfile.targetDomain.equals(profile.targetDomain, ignoreCase = true)
+        val focusAreaChanged = previousProfile != null && (
+            !previousProfile.subdomain.equals(profile.subdomain, ignoreCase = true) ||
+            domainChanged ||
+            !previousProfile.goal.equals(profile.goal, ignoreCase = true)
+        )
+
+        val finalizedOnboardingCompleted = profile.onboardingCompleted || (previousProfile?.onboardingCompleted == true)
+        val finalizedProfile = if (profile.onboardingCompleted != finalizedOnboardingCompleted) {
+            profile.copy(onboardingCompleted = finalizedOnboardingCompleted)
+        } else {
+            profile
+        }
+
+        _profileState.value = LearningUiState.Loading
+        learningRepository.saveProfile(finalizedProfile)
+        _currentUserId.value = finalizedProfile.userId
+        appPreferences?.setActiveUserId(finalizedProfile.userId)
+        android.util.Log.i(TAG, "createOrUpdateProfileAsync: saved profile userId='${finalizedProfile.userId}', onboardingCompleted=${finalizedProfile.onboardingCompleted}, domain='${finalizedProfile.targetDomain}', focusArea='${finalizedProfile.subdomain}'")
+
+        _profileState.value = LearningUiState.Success(finalizedProfile)
+        val tracks = learningRepository.getTracksForUser(finalizedProfile.userId)
+        if (tracks.isNotEmpty()) {
+            _tracksState.value = LearningUiState.Success(tracks)
+            _activeTrack.value = tracks.firstOrNull { it.isTrackActive } ?: tracks.first()
+        }
+
+        // If focus area, specialization or domain changed, immediately invalidate and reset focus-dependent artifacts
+        if (focusAreaChanged) {
+            val focusDisplayName = finalizedProfile.subdomain.ifBlank { finalizedProfile.targetDomain }
+            _roadmapState.value = LearningUiState.Empty("Take the diagnostic assessment to generate your roadmap for $focusDisplayName.")
+            _studyTasksState.value = LearningUiState.Empty("Take the diagnostic assessment to generate your study plan.")
+            _checkpointResults.value = emptyMap()
+            _completedAssignments.value = emptyMap()
+            _skillGapState.value = LearningUiState.Empty("Take the diagnostic assessment to identify skill gaps in $focusDisplayName.")
+        }
+
+        // Invalidate stale video recommendations from the previous profile/topic
+        _youtubeVideosState.value = LearningUiState.Loading
+
+        loadRoadmapAndTasks(finalizedProfile.userId)
+        loadAllProfiles()
+    }
+
     fun createOrUpdateProfile(profile: LearnerProfile) {
         viewModelScope.launch {
-            _profileState.value = LearningUiState.Loading
-            learningRepository.saveProfile(profile)
-            _currentUserId.value = profile.userId
-            _profileState.value = LearningUiState.Success(profile)
-            loadTracks()
-            loadRoadmapAndTasks(profile.userId)
-            loadAllProfiles()
+            createOrUpdateProfileAsync(profile)
         }
     }
 
     private suspend fun loadRoadmapAndTasks(userId: String) {
-        val roadmap = learningRepository.getRoadmap(userId)
+        val activeTrackId = _activeTrack.value?.trackId
+        val currentProfile = (_profileState.value as? LearningUiState.Success)?.data
+        val normTargetDomain = currentProfile?.let { TopicTaxonomy.normalizeDomain(it.targetDomain) }
+
+        val rawRoadmap = if (activeTrackId != null) {
+            learningRepository.getRoadmapForTrack(activeTrackId) ?: learningRepository.getRoadmap(userId)
+        } else {
+            learningRepository.getRoadmap(userId)
+        }
+        val isFocusMismatched = rawRoadmap != null && currentProfile != null && (
+            (normTargetDomain != null && !TopicTaxonomy.normalizeDomain(rawRoadmap.domain).equals(normTargetDomain, ignoreCase = true)) ||
+            (currentProfile.subdomain.isNotBlank() && rawRoadmap.subdomain.isNotBlank() && !rawRoadmap.subdomain.equals(currentProfile.subdomain, ignoreCase = true))
+        )
+
+        if (isFocusMismatched) {
+            val focusName = currentProfile?.subdomain?.ifBlank { currentProfile.targetDomain } ?: "your focus area"
+            _roadmapState.value = LearningUiState.Empty("Take the diagnostic assessment to generate your roadmap for $focusName.")
+            _studyTasksState.value = LearningUiState.Empty("Take the diagnostic assessment to generate your study plan.")
+            _checkpointResults.value = emptyMap()
+            _completedAssignments.value = emptyMap()
+            return
+        }
+
+        val roadmap = if (rawRoadmap != null && !isFocusMismatched) rawRoadmap else null
+
         if (roadmap != null && roadmap.steps.isNotEmpty()) {
             _roadmapState.value = LearningUiState.Success(roadmap)
         } else {
             _roadmapState.value = LearningUiState.Empty("Take the diagnostic assessment to generate your roadmap.")
         }
 
-        val tasks = learningRepository.getStudyTasks(userId)
-        if (tasks.isNotEmpty()) {
-            _studyTasksState.value = LearningUiState.Success(tasks)
+        val allTasks = if (activeTrackId != null) {
+            learningRepository.getStudyTasksForTrack(activeTrackId)
+        } else {
+            learningRepository.getStudyTasks(userId)
+        }
+
+        val validStepIds = roadmap?.steps?.map { it.id }?.toSet() ?: emptySet()
+        val validTopics = roadmap?.steps?.map { it.topic.lowercase().trim() } ?: emptyList()
+
+        val checkpoints = mutableMapOf<Int, DayCheckpointResult>()
+        val assignments = mutableMapOf<Int, AssignmentResult>()
+        val regularTasks = mutableListOf<StudyTask>()
+
+        for (t in allTasks) {
+            val taskTopic = t.topic.lowercase().trim()
+            val belongsToRoadmap = if (roadmap != null) {
+                t.roadmapStepId in validStepIds || validTopics.any { taskTopic.contains(it) || it.contains(taskTopic) }
+            } else {
+                val isAcidPoison = taskTopic.contains("acid") || taskTopic.contains("chemical")
+                val isNonScienceDomain = normTargetDomain == "Electronics and VLSI" || normTargetDomain == "Computer Science and IT"
+                !(isAcidPoison && isNonScienceDomain)
+            }
+
+            if (t.notes.startsWith("CHECKPOINT|") || t.id.startsWith("checkpoint_")) {
+                if (roadmap == null || belongsToRoadmap || validTopics.any { t.notes.lowercase().contains(it) }) {
+                    val parts = t.notes.removePrefix("CHECKPOINT|").split("|").associate { part ->
+                        val idx = part.indexOf(":")
+                        if (idx > 0) part.substring(0, idx) to part.substring(idx + 1) else part to ""
+                    }
+                    val score = parts["score"]?.toIntOrNull() ?: if (t.isCompleted) 100 else 0
+                    val correct = parts["correct"]?.toIntOrNull() ?: if (t.isCompleted) 5 else 0
+                    val total = parts["total"]?.toIntOrNull() ?: 5
+                    val attempt = parts["attempt"]?.toIntOrNull() ?: 1
+                    val feedback = parts["feedback"] ?: if (t.isCompleted) "Checkpoint passed!" else "Needs improvement."
+                    val remedial = parts["remedial"]
+                    val topic = parts["topic"] ?: t.topic
+                    checkpoints[t.dayIndex] = DayCheckpointResult(
+                        dayIndex = t.dayIndex,
+                        isPassed = t.isCompleted,
+                        scorePercent = score,
+                        correctCount = correct,
+                        totalQuestions = total,
+                        feedback = feedback,
+                        remedialAdvice = remedial,
+                        attemptNumber = attempt,
+                        topic = topic
+                    )
+                }
+            } else if (t.notes.startsWith("ASSIGNMENT|") || t.id.startsWith("assignment_")) {
+                if (roadmap == null || belongsToRoadmap || validTopics.any { t.notes.lowercase().contains(it) }) {
+                    val parts = t.notes.removePrefix("ASSIGNMENT|").split("|").associate { part ->
+                        val idx = part.indexOf(":")
+                        if (idx > 0) part.substring(0, idx) to part.substring(idx + 1) else part to ""
+                    }
+                    val score = parts["score"]?.toIntOrNull() ?: 100
+                    val feedback = parts["feedback"] ?: "Assignment completed."
+                    assignments[t.dayIndex] = AssignmentResult(
+                        assignmentId = t.id,
+                        scorePercent = score,
+                        feedback = feedback,
+                        isSubmitted = t.isCompleted
+                    )
+                }
+            } else {
+                if (belongsToRoadmap) {
+                    regularTasks.add(t)
+                }
+            }
+        }
+        _checkpointResults.value = checkpoints
+        _completedAssignments.value = assignments
+
+        if (regularTasks.isNotEmpty()) {
+            _studyTasksState.value = LearningUiState.Success(regularTasks)
         } else {
             _studyTasksState.value = LearningUiState.Empty("No study tasks scheduled yet.")
         }
+
+        // Calculate unlocked days sequentially:
+        // Day 1 is always unlocked.
+        // Day D > 1 is unlocked iff Day D-1 regular tasks are all completed AND Day D-1 checkpoint assessment was passed.
+        val unlocked = mutableSetOf(1)
+        val regularByDay = regularTasks.groupBy { it.dayIndex }
+        val maxDay = maxOf(1, regularTasks.maxOfOrNull { it.dayIndex } ?: (roadmap?.steps?.size ?: 1))
+        for (d in 1..maxDay) {
+            if (unlocked.contains(d)) {
+                val dayTasks = regularByDay[d] ?: emptyList()
+                val tasksDone = dayTasks.isNotEmpty() && dayTasks.all { it.isCompleted }
+                val cpPassed = checkpoints[d]?.isPassed == true
+                if (tasksDone && cpPassed) {
+                    unlocked.add(d + 1)
+                }
+            }
+        }
+        _unlockedDays.value = unlocked
 
         val gapReport = learningRepository.getSkillGapReport(userId)
         if (gapReport != null) {
@@ -281,13 +501,20 @@ class LearningViewModel(
                 val currentTrackId = _activeTrack.value?.trackId ?: "track_${profile.userId}_default"
                 val report = learningRepository.submitAssessment(profile, questions, answers, currentTrackId)
 
-                // If AI Core Engine is active, synthesize personalized AI roadmap and daily study plan
+                // If AI Core Engine is active, synthesize personalized AI skill gaps, roadmap and daily study plan
+                var finalReport = report
                 aiCoreEngine?.let { engine ->
                     try {
-                        val aiRoadmap = engine.synthesizePersonalizedRoadmap(profile, report)
+                        val aiReport = engine.interpretSkillGaps(profile, questions, answers, currentTrackId)
+                        if (aiReport.skillGaps.isNotEmpty()) {
+                            finalReport = aiReport
+                            learningRepository.saveSkillGapReport(aiReport, currentTrackId)
+                        }
+                        val aiRoadmap = engine.synthesizePersonalizedRoadmapAsync(profile, finalReport, trackId = currentTrackId)
                         learningRepository.saveRoadmap(aiRoadmap, currentTrackId)
-                        val learnerCtx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile, currentTrackId, report)
-                        val aiTasks = engine.generateDailyStudyPlan(learnerCtx, aiRoadmap)
+                        val learnerCtx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile, currentTrackId, finalReport)
+                        val dueSrs = learningRepository.getSpacedRepetitionQueue(currentTrackId, profile.userId)
+                        val aiTasks = engine.recommendDailyStudyPlan(learnerCtx, aiRoadmap, dueSrs, currentTrackId)
                         if (aiTasks.isNotEmpty()) {
                             learningRepository.saveStudyTasks(aiTasks, currentTrackId)
                         }
@@ -296,7 +523,7 @@ class LearningViewModel(
                     }
                 }
 
-                _skillGapState.value = LearningUiState.Success(report)
+                _skillGapState.value = LearningUiState.Success(finalReport)
                 loadRoadmapAndTasks(profile.userId)
                 loadAdaptiveLearningEngine(currentTrackId)
             } catch (e: Exception) {
@@ -307,6 +534,9 @@ class LearningViewModel(
 
     suspend fun getOrGenerateDiagnosticAssessment(profile: LearnerProfile): List<AssessmentQuestion> {
         val aiEngine = aiCoreEngine
+        val targetDom = profile.targetDomain
+        val normDom = TopicTaxonomy.normalizeDomain(targetDom)
+
         if (aiEngine != null) {
             val questions = aiEngine.generateDiagnosticAssessment(profile)
             if (questions.isNotEmpty()) {
@@ -314,17 +544,25 @@ class LearningViewModel(
                 return questions.take(10)
             }
         }
-        val domainQuestions = learningRepository.getAssessmentQuestionsForDomain(profile.targetDomain)
+        val tailored = aiEngine?.generateTailoredDomainQuestions(profile)
+        if (!tailored.isNullOrEmpty()) {
+            learningRepository.saveDiagnosticQuestions(tailored)
+            return tailored.take(10)
+        }
+        val domainQuestions = learningRepository.getAssessmentQuestionsForDomain(normDom)
         if (domainQuestions.isNotEmpty()) {
             return domainQuestions.take(10)
         }
-        return learningRepository.getAllQuestions().take(10)
+        return emptyList()
     }
 
     suspend fun getQuestionsForDomain(domain: String): List<AssessmentQuestion> {
         val domainQuestions = learningRepository.getAssessmentQuestionsForDomain(domain)
         if (domainQuestions.isNotEmpty()) return domainQuestions.take(10)
-        return learningRepository.getAllQuestions().take(10)
+        val dummyProfile = LearnerProfile(userId = "temp", name = "", targetDomain = domain)
+        val tailored = aiCoreEngine?.generateTailoredDomainQuestions(dummyProfile)
+        if (!tailored.isNullOrEmpty()) return tailored.take(10)
+        return learningRepository.getAssessmentQuestionsForDomain(TopicTaxonomy.normalizeDomain(domain)).take(10)
     }
 
     suspend fun getAllDiagnosticQuestions(): List<AssessmentQuestion> {
@@ -334,8 +572,217 @@ class LearningViewModel(
     fun toggleStudyTask(taskId: String, isCompleted: Boolean) {
         viewModelScope.launch {
             learningRepository.toggleTaskCompletion(currentUserId, taskId, isCompleted)
-            val updatedTasks = learningRepository.getStudyTasks(currentUserId)
-            _studyTasksState.value = LearningUiState.Success(updatedTasks)
+            loadRoadmapAndTasks(currentUserId)
+        }
+    }
+
+    fun isDayUnlocked(dayIndex: Int): Boolean {
+        return dayIndex <= 1 || _unlockedDays.value.contains(dayIndex)
+    }
+
+    suspend fun getCheckpointQuestions(
+        profile: LearnerProfile,
+        dayIndex: Int,
+        topic: String,
+        attemptNumber: Int = 1
+    ): List<AssessmentQuestion> {
+        val domainQuestions = learningRepository.getAssessmentQuestionsForDomain(profile.targetDomain)
+        val candidateQuestions = if (domainQuestions.isNotEmpty()) domainQuestions
+            else (aiCoreEngine?.generateTailoredDomainQuestions(profile) ?: emptyList())
+
+        val topicMatches = candidateQuestions.filter {
+            it.topic.contains(topic, ignoreCase = true) || topic.contains(it.topic, ignoreCase = true)
+        }
+        val pool = if (topicMatches.size >= 5) topicMatches else candidateQuestions
+
+        return if (attemptNumber > 1) {
+            val rng = kotlin.random.Random(dayIndex * 31 + attemptNumber * 101)
+            pool.shuffled(rng).take(5)
+        } else {
+            val offset = ((dayIndex - 1) * 5) % maxOf(1, pool.size)
+            val sub = pool.drop(offset) + pool.take(offset)
+            sub.take(5)
+        }
+    }
+
+    suspend fun submitDayCheckpointAssessmentAsync(
+        profile: LearnerProfile,
+        dayIndex: Int,
+        topic: String,
+        questions: List<AssessmentQuestion>,
+        answers: Map<String, Int>,
+        attemptNumber: Int = 1
+    ): DayCheckpointResult {
+        val total = questions.size
+        var correct = 0
+        val missedTopics = mutableListOf<String>()
+        for (q in questions) {
+            val ans = answers[q.id]
+            if (ans != null && ans == q.correctIndex) {
+                correct++
+            } else {
+                missedTopics.add(q.topic.ifBlank { topic })
+            }
+        }
+        val scorePercent = if (total > 0) (correct * 100) / total else 0
+        val isPassed = scorePercent >= 60
+
+        val feedback = if (isPassed) {
+            "Passed! Score: $scorePercent% ($correct/$total correct). Day ${dayIndex + 1} is now unlocked!"
+        } else {
+            "Checkpoint Not Passed ($scorePercent%). Minimum 60% required to unlock Day ${dayIndex + 1}."
+        }
+
+        val remedial = if (!isPassed) {
+            val reviewTopics = missedTopics.distinct().joinToString(", ")
+            "Review the following core concept(s): $reviewTopics. Consult the AI Tutor or textbook module for clarification, then retake the checkpoint assessment."
+        } else null
+
+        val result = DayCheckpointResult(
+            dayIndex = dayIndex,
+            isPassed = isPassed,
+            scorePercent = scorePercent,
+            correctCount = correct,
+            totalQuestions = total,
+            feedback = feedback,
+            remedialAdvice = remedial,
+            attemptNumber = attemptNumber,
+            topic = topic
+        )
+
+        val currentTrackId = _activeTrack.value?.trackId ?: "track_${profile.userId}_default"
+        val taskId = "checkpoint_${currentTrackId}_day_${dayIndex}"
+        val notes = "CHECKPOINT|score:$scorePercent|correct:$correct|total:$total|attempt:$attemptNumber|feedback:$feedback${if (remedial != null) "|remedial:$remedial" else ""}|topic:$topic"
+
+        val task = StudyTask(
+            id = taskId,
+            userId = profile.userId,
+            roadmapStepId = "step_checkpoint_day_${dayIndex}",
+            dayIndex = dayIndex,
+            weekIndex = (dayIndex - 1) / 7 + 1,
+            title = "Day $dayIndex Checkpoint Assessment",
+            topic = topic,
+            durationMinutes = 10,
+            isCompleted = isPassed,
+            completedAtEpochMs = System.currentTimeMillis(),
+            notes = notes
+        )
+
+        try {
+            learningRepository.saveStudyTasks(listOf(task), currentTrackId)
+            try {
+                learningRepository.recordDiagnosticAttempt(
+                    trackId = currentTrackId,
+                    userId = profile.userId,
+                    nodeId = "day_${dayIndex}_checkpoint",
+                    correctCount = correct,
+                    totalQuestions = total,
+                    topicTitle = topic
+                )
+            } catch (_: Exception) {}
+
+            loadRoadmapAndTasks(profile.userId)
+        } catch (_: Exception) {}
+
+        return result
+    }
+
+    fun submitDayCheckpointAssessment(
+        profile: LearnerProfile,
+        dayIndex: Int,
+        topic: String,
+        questions: List<AssessmentQuestion>,
+        answers: Map<String, Int>,
+        attemptNumber: Int = 1,
+        onResult: (DayCheckpointResult) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val res = submitDayCheckpointAssessmentAsync(profile, dayIndex, topic, questions, answers, attemptNumber)
+            onResult(res)
+        }
+    }
+
+    suspend fun generateAssignmentForDay(
+        profile: LearnerProfile,
+        dayIndex: Int,
+        topic: String
+    ): AssignmentInstance {
+        val trackId = _activeTrack.value?.trackId ?: "track_${profile.userId}_default"
+        val domainQuestions = learningRepository.getAssessmentQuestionsForDomain(profile.targetDomain)
+        val questions = if (domainQuestions.isNotEmpty()) domainQuestions
+            else (aiCoreEngine?.generateTailoredDomainQuestions(profile) ?: emptyList())
+        return DeterministicAssessmentEngine.createAssignmentInstance(
+            userId = profile.userId,
+            trackId = trackId,
+            dayIndex = dayIndex,
+            availableQuestions = questions,
+            count = 3
+        )
+    }
+
+    suspend fun submitAssignmentAsync(
+        profile: LearnerProfile,
+        assignment: AssignmentInstance,
+        answers: Map<String, Int>
+    ): AssignmentResult {
+        val total = assignment.questions.size
+        var correct = 0
+        for (q in assignment.questions) {
+            val ans = answers[q.id]
+            if (ans != null && ans == q.correctIndex) {
+                correct++
+            }
+        }
+        val scorePercent = if (total > 0) (correct * 100) / total else 100
+        val feedback = "Assignment submitted with score $scorePercent% ($correct/$total correct). Practical skills verified."
+        val currentTrackId = _activeTrack.value?.trackId ?: "track_${profile.userId}_default"
+        val taskId = "assignment_${currentTrackId}_day_${assignment.dayIndex}"
+        val notes = "ASSIGNMENT|score:$scorePercent|feedback:$feedback"
+
+        val task = StudyTask(
+            id = taskId,
+            userId = profile.userId,
+            roadmapStepId = "step_assignment_day_${assignment.dayIndex}",
+            dayIndex = assignment.dayIndex,
+            weekIndex = (assignment.dayIndex - 1) / 7 + 1,
+            title = "Day ${assignment.dayIndex} AI Assignment",
+            topic = assignment.questions.firstOrNull()?.topic ?: "Practical Application",
+            durationMinutes = 15,
+            isCompleted = true,
+            completedAtEpochMs = System.currentTimeMillis(),
+            notes = notes
+        )
+
+        try {
+            learningRepository.saveStudyTasks(listOf(task), currentTrackId)
+            loadRoadmapAndTasks(profile.userId)
+        } catch (_: Exception) {}
+
+        return AssignmentResult(
+            assignmentId = assignment.assignmentInstanceId,
+            scorePercent = scorePercent,
+            feedback = feedback,
+            isSubmitted = true
+        )
+    }
+
+    fun submitAssignment(
+        profile: LearnerProfile,
+        assignment: AssignmentInstance,
+        answers: Map<String, Int>,
+        onResult: (AssignmentResult) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val res = submitAssignmentAsync(profile, assignment, answers)
+            onResult(res)
+        }
+    }
+
+    fun loadWeeklyStudyPlan(trackId: String? = null) {
+        viewModelScope.launch {
+            val tId = trackId ?: _activeTrack.value?.trackId ?: "track_${currentUserId}_default"
+            val plan = learningRepository.getWeeklyStudyPlan(tId, currentUserId)
+            _weeklyStudyPlan.value = plan
         }
     }
 
@@ -444,7 +891,7 @@ class LearningViewModel(
         viewModelScope.launch {
             val packs = learningRepository.getAllContentPacks()
             _installedPacks.value = packs
-            
+
             // Query assigned tracks for each installed pack
             val trackMap = mutableMapOf<String, List<LearningTrack>>()
             for (p in packs) {
@@ -860,16 +1307,78 @@ class LearningViewModel(
         }
     }
 
+    // ── YouTube Data API v3 & Local Llama Video Notes ────────────────────────
+
+    fun loadYouTubeResourcesForTopic(profile: LearnerProfile?, topic: String) {
+        viewModelScope.launch {
+            _youtubeVideosState.value = LearningUiState.Loading
+            try {
+                val result = if (profile != null) {
+                    youtubeRepository.getCuratedVideosForLearner(profile, topic)
+                } else {
+                    youtubeRepository.searchVideos(topic)
+                }
+                if (result.isSuccess) {
+                    val videos = result.getOrNull().orEmpty()
+                    if (videos.isNotEmpty()) {
+                        _youtubeVideosState.value = LearningUiState.Success(videos)
+                    } else {
+                        _youtubeVideosState.value = LearningUiState.Empty("No video lectures found for $topic.")
+                    }
+                } else {
+                    val error = result.exceptionOrNull()
+                    val msg = error?.message ?: "Unable to fetch video recommendations."
+                    _youtubeVideosState.value = LearningUiState.Error(msg)
+                }
+            } catch (e: Exception) {
+                _youtubeVideosState.value = LearningUiState.Error(e.message ?: "Failed to load video resources.")
+            }
+        }
+    }
+
+    suspend fun generateVideoNotesAsync(
+        video: YouTubeVideoItem,
+        transcriptOrDescription: String = ""
+    ): VideoStudyNotes {
+        _isLoadingVideoNotes.value = true
+        return try {
+            val notes = youtubeRepository.generateStudyNotesWithLocalLlama(
+                video = video,
+                transcriptOrDescription = transcriptOrDescription,
+                aiCoreEngine = aiCoreEngine
+            )
+            val currentMap = _videoStudyNotesState.value.toMutableMap()
+            currentMap[video.id] = notes
+            _videoStudyNotesState.value = currentMap
+            notes
+        } finally {
+            _isLoadingVideoNotes.value = false
+        }
+    }
+
+    fun generateVideoNotes(
+        video: YouTubeVideoItem,
+        transcriptOrDescription: String = "",
+        onResult: (VideoStudyNotes) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val notes = generateVideoNotesAsync(video, transcriptOrDescription)
+            onResult(notes)
+        }
+    }
+
     class Factory(
         private val learningRepository: LearningRepository,
         private val aiTutorRepository: AiTutorRepository,
-        private val appPreferences: AppPreferences? = null,
-        private val aiCoreEngine: LearnMateAiCoreEngine? = null
+        val appPreferences: AppPreferences? = null,
+        private val aiCoreEngine: LearnMateAiCoreEngine? = null,
+        private val youtubeRepository: YouTubeDataRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(LearningViewModel::class.java)) {
-                return LearningViewModel(learningRepository, aiTutorRepository, appPreferences, aiCoreEngine) as T
+                val ytRepo = youtubeRepository ?: YouTubeDataRepository(learningRepository)
+                return LearningViewModel(learningRepository, aiTutorRepository, appPreferences, aiCoreEngine, ytRepo) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

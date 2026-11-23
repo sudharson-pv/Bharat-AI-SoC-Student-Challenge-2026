@@ -21,20 +21,43 @@ object DeterministicRoadmapEngine {
         profile: LearnerProfile,
         skillGapReport: SkillGapReport?
     ): PersonalisedRoadmap {
-        // 1. Gather catalog topics for this domain
-        val catalogEntry = TopicTaxonomy.DOMAIN_CATEGORIES.firstOrNull {
-            it.title.equals(profile.targetDomain, ignoreCase = true)
-        }
-        val defaultCoreTopics = catalogEntry?.coreTopics ?: listOf(
-            "${profile.targetDomain} Core Principles",
-            "${profile.subdomain.ifBlank { profile.targetDomain }} Key Methodologies",
-            "Applied Techniques for ${profile.targetRole.ifBlank { "Specialist" }}",
-            "Advanced Synthesis & Problem Solving",
-            "Capstone Project: ${profile.goal.ifBlank { "Domain Mastery" }}"
+        val normDomain = TopicTaxonomy.normalizeDomain(profile.targetDomain)
+        // 1. Gather catalog topics for this specific focus area (PRIMARY) or domain
+        val focusDef = com.learnmate.ai.domain.focus.FocusAreaIntelligence.resolveFocusArea(
+            focusAreaName = profile.subdomain.ifBlank { profile.targetDomain },
+            domain = profile.targetDomain
         )
+        val catalogEntry = TopicTaxonomy.DOMAIN_CATEGORIES.firstOrNull {
+            it.title.equals(profile.targetDomain, ignoreCase = true) ||
+            it.title.equals(normDomain, ignoreCase = true)
+        }
+        val defaultCoreTopics = if (focusDef.suggestedRoadmapTopics.isNotEmpty()) {
+            focusDef.suggestedRoadmapTopics
+        } else {
+            catalogEntry?.coreTopics ?: listOf(
+                "${profile.targetDomain} Core Principles",
+                "${profile.subdomain.ifBlank { profile.targetDomain }} Key Methodologies",
+                "Applied Techniques for ${profile.targetRole.ifBlank { "Specialist" }}",
+                "Advanced Synthesis & Problem Solving",
+                "Capstone Project: ${profile.goal.ifBlank { "Domain Mastery" }}"
+            )
+        }
 
-        // 2. Identify prioritized gaps
-        val weaknesses = skillGapReport?.weaknesses ?: emptyList()
+        // 2. Identify prioritized gaps (Filtered strictly to this focus area & domain to prevent cross-contamination)
+        val allVerified = TopicTaxonomy.getVerifiedTopics()
+        val domainAllowedTopics = defaultCoreTopics + allVerified
+            .filter {
+                val nd = TopicTaxonomy.normalizeDomain(it.domain)
+                nd.equals(normDomain, ignoreCase = true) ||
+                it.domain.contains(profile.subdomain, ignoreCase = true) ||
+                it.title.contains(profile.subdomain, ignoreCase = true)
+            }
+            .map { it.title }
+
+        val rawWeaknesses = skillGapReport?.weaknesses ?: emptyList()
+        val weaknesses = rawWeaknesses.filter { w ->
+            domainAllowedTopics.any { dt -> dt.contains(w, ignoreCase = true) || w.contains(dt, ignoreCase = true) }
+        }
 
         // 3. Merge: gaps first, then remaining core topics
         val prioritizedTopics = (weaknesses + defaultCoreTopics)
@@ -44,7 +67,6 @@ object DeterministicRoadmapEngine {
             .take(5)
 
         // 4. Generate sequential roadmap steps with prerequisites & verified textbook references
-        val allVerified = TopicTaxonomy.getVerifiedTopics()
         val steps = prioritizedTopics.mapIndexed { idx, topic ->
             val isGap = weaknesses.any { it.equals(topic, ignoreCase = true) }
             val prereqs = if (idx == 0) emptyList() else listOf("Step $idx: ${prioritizedTopics[idx - 1]}")
@@ -66,21 +88,31 @@ object DeterministicRoadmapEngine {
                 )
             } else null
 
+            val stepTitle = if (idx == prioritizedTopics.lastIndex && !isGap && focusDef.displayName.isNotBlank()) {
+                "Capstone: ${focusDef.displayName} Project"
+            } else if (isGap) {
+                "Priority Remediation: $topic"
+            } else {
+                "Core Competency: $topic"
+            }
+
+            val stepDesc = if (isGap) {
+                "Targets identified gap from your diagnostic assessment. Focuses on foundational verified curriculum and hands-on exercises in ${focusDef.displayName}."
+            } else {
+                "Builds advanced mastery toward your goal: '${profile.goal.ifBlank { focusDef.targetOutcomeSummary }}'."
+            }
+
             RoadmapStep(
                 stepNumber = idx + 1,
                 id = "step_${profile.userId}_${idx + 1}",
-                title = if (isGap) "Priority Remediation: $topic" else "Core Competency: $topic",
+                title = stepTitle,
                 topic = topic,
-                description = if (isGap) {
-                    "Targets identified gap from your diagnostic assessment. Focuses on foundational verified curriculum and hands-on exercises."
-                } else {
-                    "Builds advanced mastery toward your goal: '${profile.goal.ifBlank { profile.targetDomain }}'."
-                },
+                description = stepDesc,
                 prerequisites = prereqs,
                 estimatedMinutes = stepEstimatedMinutes,
                 addressesSkillGap = isGap,
                 status = if (idx == 0) "IN_PROGRESS" else "NOT_STARTED",
-                verifiedExplanation = matchedTopic?.verifiedExplanation ?: "",
+                verifiedExplanation = matchedTopic?.verifiedExplanation ?: (if (isGap) "Targeted skill gap remediation." else "Core accredited milestone."),
                 reference = ref
             )
         }

@@ -42,7 +42,10 @@ class LearnMateApplication : Application() {
         appPreferences = AppPreferences(this)
         database = LearnMateDatabase.getInstance(this)
         learningRepository = LearningRepository(database.learnMateDao())
-        assetManager = ModelAssetManager(filesDir)
+        assetManager = ModelAssetManager(
+            appFilesDir = filesDir,
+            activeModelIdProvider = { appPreferences.getActiveModelId() }
+        )
         llamaEngine = ExecuTorchLlamaEngine(assetManager)
         aiCoreEngine = com.learnmate.ai.ai.LearnMateAiCoreEngine(llamaEngine, assetManager)
         aiTutorRepository = AiTutorRepository(llamaEngine, assetManager, learningRepository)

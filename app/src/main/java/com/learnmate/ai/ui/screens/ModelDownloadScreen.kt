@@ -635,7 +635,11 @@ fun ModelDownloadScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
-                                    onClick = onModelReady,
+                                    onClick = {
+                                        appPreferences.setActiveModelId(selectedCatalogEntry.modelId)
+                                        learningViewModel?.initializeAndActivateModel()
+                                        onModelReady()
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                                     modifier = Modifier.fillMaxWidth().height(48.dp)
                                 ) {

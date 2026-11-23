@@ -1,6 +1,7 @@
 package com.learnmate.ai.data.repository
 
 import android.util.Log
+import com.learnmate.ai.ai.ActiveModelManifest
 import com.learnmate.ai.ai.ExecuTorchLlamaEngine
 import com.learnmate.ai.ai.ModelAssetManager
 import com.learnmate.ai.ai.ModelRuntimeState
@@ -36,6 +37,22 @@ class AiTutorRepository(
         private const val TAG = "AiTutorRepository"
         const val DISCLAIMER = "Notice: AI-generated guidance is intended for conceptual study and should be cross-referenced with verified curriculum materials."
         const val VERIFIED_TEXTBOOK_MODE_NOTICE = "Verified Textbook Mode: Local generative AI synthesis is disabled by production policy. All explanations are retrieved directly from accredited textbook references with deterministic provenance."
+
+        fun isExplicitCodeRequest(question: String): Boolean {
+            val q = question.lowercase()
+            val isExplicitNoCode = q.contains("without code") || q.contains("without writing code") ||
+                q.contains("no code") || q.contains("without any code")
+            if (isExplicitNoCode) return false
+
+            val hasCodeAction = q.contains("write a") || q.contains("write code") ||
+                q.contains("code for") || q.contains("implement") || q.contains("implementation of") ||
+                q.contains("program for") || q.contains("script for") || q.contains("function to") ||
+                q.contains("module for") || q.contains("code to")
+            val hasLanguage = q.contains("verilog") || q.contains("python") || q.contains("c++") ||
+                q.contains("java") || q.contains("rust") || q.contains("sql") || q.contains("kotlin")
+
+            return hasCodeAction && (hasLanguage || q.contains("code") || q.contains("module") || q.contains("program"))
+        }
     }
 
     // Educational Safeguard: Production AI kill switch active by default.
@@ -154,17 +171,24 @@ class AiTutorRepository(
 
         val genResult = engine.generate(
             prompt = formattedPrompt,
-            maxNewTokens = 192,
+            maxNewTokens = ActiveModelManifest.MAX_AI_TUTOR_NEW_TOKENS,
             onTokenDelta = onTokenDelta
         )
 
         return@withContext if (genResult.isSuccess) {
             val metrics = genResult.getOrNull()!!
             val rawText = metrics.generatedText
-            val cleanedText = if (!rawText.contains(DISCLAIMER)) {
-                "$rawText\n\n$DISCLAIMER"
+            val isCodeReq = isExplicitCodeRequest(userQuestion)
+            val filteredText = if (!isCodeReq && rawText.contains("```")) {
+                val proseOnly = rawText.replace(Regex("```[a-zA-Z]*\\n[\\s\\S]*?```"), "").trim()
+                if (proseOnly.isNotBlank()) proseOnly else rawText.replace("```", "").trim()
             } else {
                 rawText
+            }
+            val cleanedText = if (!filteredText.contains(DISCLAIMER)) {
+                "$filteredText\n\n$DISCLAIMER"
+            } else {
+                filteredText
             }
 
             val tutorMsg = ChatMessage(
@@ -205,21 +229,31 @@ class AiTutorRepository(
         }
     }
 
+
     private fun buildBudgetedPrompt(
         history: List<ChatMessage>,
         newQuestion: String,
         currentTopic: String
     ): String {
         val topicContext = if (currentTopic.isNotBlank()) "Topic: $currentTopic. " else ""
+        val isCodeReq = isExplicitCodeRequest(newQuestion)
+        val codeInstruction = if (isCodeReq) {
+            "The user explicitly requested source code or hardware design code. Provide clean, correct, standard-compliant code inside markdown code fences with the language identifier (e.g. ```verilog or ```python), followed by a brief, focused explanation."
+        } else {
+            "STRICT DIRECTIVE: Do NOT output, write, prepend, or append any source code, programming blocks, or backticks (no ``` or code snippets). The user asked an educational/conceptual question. Explain purely in clear, natural-language educational prose."
+        }
         val systemInstruction = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n" +
-            "You are LearnMate, a concise, accurate on-device educational tutor. ${topicContext}" +
-            "Explain concepts clearly in 2 to 3 sentences.<|eot_id|>"
+            "You are LearnMate, a knowledgeable, accurate, and comprehensive on-device educational tutor. $topicContext" +
+            "Provide clear, detailed, and thorough educational explanations. $codeInstruction<|eot_id|>"
 
         val historyBuilder = java.lang.StringBuilder()
         for (m in history) {
             val role = if (m.senderRole == "USER") "user" else "assistant"
             historyBuilder.append("<|start_header_id|>$role<|end_header_id|>\n\n")
-            val cleanHistoryText = m.text.substringBefore("\n\n*This explanation is generated").take(200)
+            var cleanHistoryText = m.text.substringBefore("\n\n*This explanation is generated").take(250)
+            if (!isCodeReq && cleanHistoryText.contains("```")) {
+                cleanHistoryText = cleanHistoryText.replace(Regex("```[a-zA-Z]*\\n[\\s\\S]*?```"), "").trim()
+            }
             historyBuilder.append(cleanHistoryText)
             historyBuilder.append("<|eot_id|>")
         }
@@ -257,6 +291,12 @@ class AiTutorRepository(
         }
 
         // 3. Engineering & Technology: Digital Electronics & CS
+        if (q.contains("metastab") || q.contains("metastability") || (q.contains("setup") && q.contains("hold")) || q.contains("timing violation")) {
+            return "Metastability in digital electronics occurs when a flip-flop's setup or hold time is violated, causing its internal cross-coupled inverters to balance precariously at an intermediate voltage between logic high and low. The output hovers unpredictably until thermal noise resolves it to a stable 0 or 1. To prevent metastability from propagating through asynchronous clock domains, multi-stage synchronizers (two or more cascaded D flip-flops) are used to increase the Mean Time Between Failures (MTBF).\n\n[Verified Reference: CMOS VLSI Design: A Circuits and Systems Perspective by Neil H.E. Weste & David Money Harris (4th Edition), Ch. 10: Sequential Subsystem Design, Sec. 10.3: Metastability, ISBN: 978-0321547743]"
+        }
+        if (q.contains("cmos") || q.contains("inverter") || q.contains("pull-up") || q.contains("pull-down")) {
+            return "A CMOS inverter pairs an nMOS pull-down transistor with a pMOS pull-up transistor. When the input is high (VDD), the nMOS is on and pMOS is off, pulling the output cleanly to Ground (0V). When the input is low (GND), the pMOS is on and nMOS is off, pulling the output to VDD. Static power dissipation is virtually zero, occurring only through sub-threshold leakage, while dynamic power is consumed during switching due to capacitive charging/discharging and short-circuit crowbar current.\n\n[Verified Reference: CMOS VLSI Design: A Circuits and Systems Perspective by Neil H.E. Weste & David Money Harris (4th Edition), Ch. 1, Sec. 1.4-1.6, ISBN: 978-0321547743]"
+        }
         if (q.contains("karnaugh") || q.contains("k-map") || q.contains("kmap") || q.contains("boolean algebra") || q.contains("logic gate")) {
             return "Karnaugh Maps (K-Maps) provide a systematic pictorial method for minimizing Boolean expressions into minimal Sum of Products (SOP) or Product of Sums (POS). Cells are arranged in Gray code order so adjacent cells differ by exactly one binary variable, enabling elimination of redundant terms.\n\n[Verified Reference: Digital Design: With an Introduction to the Verilog HDL by M. Morris Mano and Michael D. Ciletti (6th Edition), Ch. 3: Gate-Level Minimization, Sec. 3.1-3.4, ISBN 978-0-13-454989-7]"
         }

@@ -86,6 +86,7 @@ class LearningRepository(
     private val skillGapsByUser = mutableMapOf<String, SkillGapReport>()
     private val roadmapsByUser = mutableMapOf<String, PersonalisedRoadmap>()
     private val studyTasksByUser = mutableMapOf<String, MutableList<StudyTask>>()
+    private val studyTasksByTrack = mutableMapOf<String, MutableList<StudyTask>>()
     private val chatSessionsByUser = mutableMapOf<String, MutableList<ChatSession>>()
     private val chatMessagesBySession = mutableMapOf<String, MutableList<ChatMessage>>()
     private val inMemoryTopicProgress = mutableMapOf<String, com.learnmate.ai.domain.TrackTopicProgress>()
@@ -234,21 +235,22 @@ class LearningRepository(
             )
             it.upsertProfile(entity)
 
-            // Ensure baseline active learning track exists for this learner
+            // Ensure baseline active learning track exists for this learner and matches target domain
             val defaultTrackId = "track_${profile.userId}_default"
             val existingTrack = it.getTrackById(defaultTrackId)
-            if (existingTrack == null) {
-                // Dynamically resolve curriculum node from installed packs matching user's target domain
-                val matchedNode = if (profile.targetDomain.isNotBlank()) {
-                    it.getAllCurriculumNodes().firstOrNull { node ->
-                        node.parentNodeId == null && (
-                            node.title.equals(profile.targetDomain, ignoreCase = true) ||
-                            node.code.equals(profile.targetDomain, ignoreCase = true)
-                        )
-                    }
-                } else null
-                val targetNodeId = matchedNode?.nodeId // Safe Unresolved-Track state (null if not yet installed)
+            val matchedNode = if (profile.targetDomain.isNotBlank()) {
+                val normDomain = TopicTaxonomy.normalizeDomain(profile.targetDomain)
+                it.getAllCurriculumNodes().firstOrNull { node ->
+                    node.parentNodeId == null && (
+                        node.title.equals(profile.targetDomain, ignoreCase = true) ||
+                        node.title.equals(normDomain, ignoreCase = true) ||
+                        node.code.equals(profile.targetDomain, ignoreCase = true)
+                    )
+                }
+            } else null
+            val targetNodeId = matchedNode?.nodeId
 
+            if (existingTrack == null) {
                 val defaultTrack = LearnerTrackEntity(
                     trackId = defaultTrackId,
                     userId = profile.userId,
@@ -261,25 +263,37 @@ class LearningRepository(
                     lastAccessedEpochMs = entity.updatedAtEpochMs
                 )
                 it.upsertTrack(defaultTrack)
+            } else {
+                it.upsertTrack(
+                    existingTrack.copy(
+                        title = "${profile.targetDomain.ifBlank { "Universal Learning" }} Track",
+                        targetCurriculumNodeId = targetNodeId ?: existingTrack.targetCurriculumNodeId,
+                        dailyCommitmentMinutes = profile.dailyStudyMinutes,
+                        isTrackActive = true
+                    )
+                )
             }
         }
 
         // Keep in-memory tracks in sync
         val memTracks = tracksByUser.getOrPut(profile.userId) { mutableListOf() }
-        if (memTracks.isEmpty()) {
-            val defaultTrack = LearningTrack(
-                trackId = "track_${profile.userId}_default",
-                userId = profile.userId,
-                title = "${profile.targetDomain.ifBlank { "Universal Learning" }} Track",
-                learningMode = LearningMode.ACADEMIC,
-                targetCurriculumNodeId = null,
-                dailyCommitmentMinutes = profile.dailyStudyMinutes,
-                isTrackActive = true
-            )
+        val defaultTrack = LearningTrack(
+            trackId = "track_${profile.userId}_default",
+            userId = profile.userId,
+            title = "${profile.targetDomain.ifBlank { "Universal Learning" }} Track",
+            learningMode = LearningMode.ACADEMIC,
+            targetCurriculumNodeId = null,
+            dailyCommitmentMinutes = profile.dailyStudyMinutes,
+            isTrackActive = true
+        )
+        val existingMemIdx = memTracks.indexOfFirst { it.trackId == defaultTrack.trackId }
+        if (existingMemIdx >= 0) {
+            memTracks[existingMemIdx] = defaultTrack
+        } else {
             memTracks.add(defaultTrack)
-            getOrCreateTracksFlow(profile.userId).value = memTracks.toList()
-            getOrCreateActiveTrackFlow(profile.userId).value = defaultTrack
         }
+        getOrCreateTracksFlow(profile.userId).value = memTracks.toList()
+        getOrCreateActiveTrackFlow(profile.userId).value = defaultTrack
     }
 
     suspend fun getProfile(userId: String): LearnerProfile? = withContext(ioDispatcher) {
@@ -530,22 +544,32 @@ class LearningRepository(
     }
 
     suspend fun getAssessmentQuestionsForDomain(domain: String): List<AssessmentQuestion> = withContext(ioDispatcher) {
-        val universalMatch = DeterministicAssessmentEngine.getAllUniversalDiagnosticQuestions()
-            .filter { it.domain.contains(domain, ignoreCase = true) || domain.contains(it.domain, ignoreCase = true) || it.topic.contains(domain, ignoreCase = true) }
-        if (universalMatch.isNotEmpty()) {
-            return@withContext universalMatch
-        }
-        val fromDao = dao?.getQuestionsForDomain(domain)
+        val normDomain = TopicTaxonomy.normalizeDomain(domain)
+        val fromDao = dao?.getQuestionsForDomain(normDomain)
         if (!fromDao.isNullOrEmpty()) {
-            return@withContext fromDao.map { DeterministicAssessmentEngine.mapEntityToDomain(it) }
+            val mapped = fromDao.map { DeterministicAssessmentEngine.mapEntityToDomain(it) }
+            if (mapped.size >= 10) return@withContext mapped.take(10)
         }
-        val memoryMatch = inMemoryQuestions.filter { it.domain.equals(domain, ignoreCase = true) }
+        val memoryMatch = inMemoryQuestions.filter {
+            it.domain.equals(normDomain, ignoreCase = true) ||
+            TopicTaxonomy.normalizeDomain(it.domain).equals(normDomain, ignoreCase = true)
+        }
         if (memoryMatch.isNotEmpty()) {
-            return@withContext memoryMatch.map { DeterministicAssessmentEngine.mapEntityToDomain(it) }
+            val mapped = memoryMatch.map { DeterministicAssessmentEngine.mapEntityToDomain(it) }
+            if (mapped.size >= 10) return@withContext mapped.take(10)
         }
-        TopicTaxonomy.getDiagnosticQuestions()
-            .filter { it.domain.equals(domain, ignoreCase = true) }
+        val taxonomyMatch = TopicTaxonomy.getDiagnosticQuestions()
+            .filter { TopicTaxonomy.normalizeDomain(it.domain).equals(normDomain, ignoreCase = true) }
             .map { DeterministicAssessmentEngine.mapEntityToDomain(it) }
+        if (taxonomyMatch.isNotEmpty()) {
+            return@withContext taxonomyMatch.take(10)
+        }
+        val universalMatch = DeterministicAssessmentEngine.getAllUniversalDiagnosticQuestions()
+            .filter { TopicTaxonomy.normalizeDomain(it.domain).equals(normDomain, ignoreCase = true) }
+        if (universalMatch.isNotEmpty()) {
+            return@withContext universalMatch.take(10)
+        }
+        emptyList()
     }
 
     suspend fun getAllQuestions(): List<AssessmentQuestion> = withContext(ioDispatcher) {
@@ -631,11 +655,22 @@ class LearningRepository(
         val roadmap = DeterministicRoadmapEngine.generateRoadmap(updatedProfile, report)
         saveRoadmap(roadmap, trackId)
 
+        // Clear previous study tasks for this track so old domain tasks don't linger in SQLite
+        dao?.clearStudyTasksForTrack(trackId)
+        studyTasksByUser[profile.userId]?.clear()
+        studyTasksByTrack[trackId]?.clear()
+
         // Automatically schedule daily study tasks
         val tasks = StudyPlanScheduler.generateStudyTasks(updatedProfile, roadmap)
         saveStudyTasks(tasks, trackId)
 
         report
+    }
+
+    suspend fun saveSkillGapReport(report: SkillGapReport, trackId: String = "track_${report.userId}_default") = withContext(ioDispatcher) {
+        skillGapsByUser[report.userId] = report
+        getOrCreateSkillGapFlow(report.userId).value = report
+        dao?.upsertSkillGapReport(DeterministicAssessmentEngine.mapReportToEntity(report, trackId))
     }
 
     suspend fun getSkillGapReport(userId: String): SkillGapReport? = withContext(ioDispatcher) {
@@ -662,6 +697,7 @@ class LearningRepository(
 
     suspend fun saveRoadmap(roadmap: PersonalisedRoadmap, trackId: String = "track_${roadmap.userId}_default") = withContext(ioDispatcher) {
         roadmapsByUser[roadmap.userId] = roadmap
+        roadmapsByUser[trackId] = roadmap
         getOrCreateRoadmapFlow(roadmap.userId).value = roadmap
         dao?.upsertRoadmap(DeterministicRoadmapEngine.mapToEntity(roadmap, trackId))
     }
@@ -691,8 +727,13 @@ class LearningRepository(
     suspend fun saveStudyTasks(tasks: List<StudyTask>, trackId: String = if (tasks.isNotEmpty()) "track_${tasks.first().userId}_default" else "track_default") = withContext(ioDispatcher) {
         if (tasks.isNotEmpty()) {
             val userId = tasks.first().userId
-            studyTasksByUser[userId] = tasks.toMutableList()
-            getOrCreateStudyTasksFlow(userId).value = tasks
+            val list = studyTasksByUser.getOrPut(userId) { mutableListOf() }
+            list.removeAll { old -> tasks.any { it.id == old.id } }
+            list.addAll(tasks)
+            val trackList = studyTasksByTrack.getOrPut(trackId) { mutableListOf() }
+            trackList.removeAll { old -> tasks.any { it.id == old.id } }
+            trackList.addAll(tasks)
+            getOrCreateStudyTasksFlow(userId).value = list.toList()
             dao?.upsertStudyTasks(tasks.map { StudyPlanScheduler.mapToEntity(it, trackId) })
         }
     }
@@ -724,6 +765,12 @@ class LearningRepository(
             if (idx != -1) {
                 list[idx] = list[idx].copy(isCompleted = isCompleted, completedAtEpochMs = timestamp)
                 getOrCreateStudyTasksFlow(userId).value = list.toList()
+            }
+        }
+        for ((_, trackList) in studyTasksByTrack) {
+            val idx = trackList.indexOfFirst { it.id == taskId }
+            if (idx != -1) {
+                trackList[idx] = trackList[idx].copy(isCompleted = isCompleted, completedAtEpochMs = timestamp)
             }
         }
         dao?.setStudyTaskCompleted(userId, taskId, isCompleted, timestamp)
@@ -1985,11 +2032,18 @@ class LearningRepository(
         if (!fromDao.isNullOrEmpty()) {
             return@withContext fromDao.map { StudyPlanScheduler.mapFromEntity(it) }
         }
+        studyTasksByTrack[trackId]?.let { if (it.isNotEmpty()) return@withContext it.toList() }
         val tasks = mutableListOf<StudyTask>()
         for ((_, taskList) in studyTasksByUser) {
             tasks.addAll(taskList.filter { it.id.contains(trackId) })
         }
-        tasks
+        if (tasks.isNotEmpty()) return@withContext tasks
+        for ((userId, taskList) in studyTasksByUser) {
+            if (trackId == "track_${userId}_default" || trackId.contains(userId)) {
+                return@withContext taskList.toList()
+            }
+        }
+        emptyList()
     }
 
     suspend fun getAllTopicProgressForTrack(

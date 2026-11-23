@@ -34,3 +34,23 @@ models/
 .DS_Store
 Thumbs.db
 
+# Temporary test dumps, logs, and evidence archives
+artifacts/*.xml
+artifacts/*.png
+artifacts/*.zip
+artifacts/physical_qa/
+artifacts/planning/
+artifacts/candidate_builds/
+artifacts/submission/*.apk
+artifacts/final_release/physical_qa/
+artifacts/qa/
+*.zip
+*.log
+*.dump
+window_dump.xml
+wifi_screen.png
+check_repo.ps1
+/*.png
+/screenshots/
+/screenshots_gate64/
+

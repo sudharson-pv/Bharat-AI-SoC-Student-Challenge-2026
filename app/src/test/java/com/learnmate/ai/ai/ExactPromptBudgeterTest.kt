@@ -157,5 +157,18 @@ class ExactPromptBudgeterTest {
             }
         }
     }
+
+    @Test
+    fun genericBudgeterClampsEveryCallerToActiveModelOutputCap() {
+        listOf(0, 1, 110, 125, 144, 145, 192, 512, Int.MAX_VALUE).forEach { requested ->
+            val plan = PromptBudgeter.planPromptBudget("Explain MOSFET sizing.", requested)
+            val expected = requested.coerceIn(1, ActiveModelManifest.MAX_NEW_TOKENS)
+            assertEquals("Requested $requested must clamp to $expected", expected, plan.allowedOutputTokens)
+            assertTrue(
+                "Estimated prompt + allowed output must fit in max seq length",
+                plan.estimatedPromptTokens + plan.allowedOutputTokens <= ActiveModelManifest.MAX_SEQ_LENGTH
+            )
+        }
+    }
 }
 

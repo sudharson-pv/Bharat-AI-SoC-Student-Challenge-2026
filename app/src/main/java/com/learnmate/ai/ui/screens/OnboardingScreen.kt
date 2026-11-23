@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.learnmate.ai.R
+import com.learnmate.ai.data.taxonomy.TopicTaxonomy
 import com.learnmate.ai.domain.AudienceLevel
 import com.learnmate.ai.domain.EducationLevel
 import com.learnmate.ai.domain.LearnerCategory
@@ -40,8 +41,11 @@ fun OnboardingScreen(
     var name by remember { mutableStateOf("") }
     var selectedDomain by remember { mutableStateOf("Computer Science & AI") }
     var selectedSubdomain by remember { mutableStateOf("Data Structures & Algorithms") }
+    var subjectsOfInterest by remember { mutableStateOf("") }
     var goal by remember { mutableStateOf("Build conceptual mastery and structured problem-solving skills") }
     var targetRole by remember { mutableStateOf("Software Engineer") }
+    var currentKnowledgeLevel by remember { mutableStateOf("Beginner") }
+    var targetDuration by remember { mutableStateOf("1 month") }
     var selectedEducationLevel by remember { mutableStateOf(EducationLevel.UNDERGRADUATE) }
     var selectedCategory by remember { mutableStateOf(LearnerCategory.ENGINEERING_STUDENT) }
     var selectedAudience by remember { mutableStateOf(AudienceLevel.UNDERGRADUATE) }
@@ -285,7 +289,27 @@ fun OnboardingScreen(
                     val isSelected = selectedDomain.equals(discipline, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
-                        onClick = { selectedDomain = discipline },
+                        onClick = {
+                            selectedDomain = discipline
+                            val matchingCat = TopicTaxonomy.DOMAIN_CATEGORIES.firstOrNull {
+                                it.title.equals(discipline, ignoreCase = true) ||
+                                it.title.equals(TopicTaxonomy.normalizeDomain(discipline), ignoreCase = true)
+                            }
+                            selectedSubdomain = matchingCat?.subdomains?.firstOrNull() ?: discipline
+                            goal = when {
+                                discipline.contains("vlsi", ignoreCase = true) || discipline.contains("electronic", ignoreCase = true) ->
+                                    "Learn CMOS fundamentals, Verilog RTL and Static Timing Analysis"
+                                discipline.contains("computer", ignoreCase = true) || discipline.contains("software", ignoreCase = true) || discipline.contains("ai", ignoreCase = true) ->
+                                    "Master advanced data structures and algorithms"
+                                discipline.contains("biotech", ignoreCase = true) || discipline.contains("biology", ignoreCase = true) ->
+                                    "PCR, cloning, and genetic engineering"
+                                discipline.contains("food", ignoreCase = true) ->
+                                    "Thermal pasteurization and shelf-life kinetics"
+                                discipline.contains("school", ignoreCase = true) || discipline.contains("secondary", ignoreCase = true) ->
+                                    "Class 10 science board exam preparation"
+                                else -> "Build conceptual mastery and structured problem-solving skills"
+                            }
+                        },
                         label = { Text(discipline, fontSize = 11.sp) },
                         leadingIcon = if (isSelected) {
                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
@@ -303,6 +327,17 @@ fun OnboardingScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
                 leadingIcon = { Icon(Icons.Default.Explore, contentDescription = null) }
+            )
+
+            // Subjects or Topics of Interest (Gate 6.17 Requirement)
+            OutlinedTextField(
+                value = subjectsOfInterest,
+                onValueChange = { subjectsOfInterest = it },
+                label = { Text("Subjects / Topics of Interest") },
+                placeholder = { Text("e.g. Molecular Biology, CMOS Inverters, Food Chemistry") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                leadingIcon = { Icon(Icons.Default.Bookmark, contentDescription = null) }
             )
 
             // Goal
@@ -324,6 +359,80 @@ fun OnboardingScreen(
                 shape = RoundedCornerShape(10.dp),
                 leadingIcon = { Icon(Icons.Default.Work, contentDescription = null) }
             )
+
+            // Current Knowledge Level Selection
+            Text(
+                text = "Current Knowledge Level:",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("Beginner", "Intermediate", "Advanced").forEach { lvl ->
+                    val isLvlSelected = lvl.equals(currentKnowledgeLevel, ignoreCase = true)
+                    FilterChip(
+                        selected = isLvlSelected,
+                        onClick = { currentKnowledgeLevel = lvl },
+                        label = { Text(lvl, fontSize = 12.sp) },
+                        leadingIcon = if (isLvlSelected) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        } else null
+                    )
+                }
+            }
+
+            // Target Duration Selection
+            Text(
+                text = "Target Learning Duration:",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("2 weeks", "3 weeks", "1 month", "Custom").forEach { dur ->
+                    val isDurSelected = dur.equals(targetDuration, ignoreCase = true)
+                    FilterChip(
+                        selected = isDurSelected,
+                        onClick = { targetDuration = dur },
+                        label = { Text(dur, fontSize = 12.sp) },
+                        leadingIcon = if (isDurSelected) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        } else null
+                    )
+                }
+            }
+
+            // Education Level Selection
+            Text(
+                text = "Education Level:",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                EducationLevel.entries.chunked(2).forEach { rowLevels ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowLevels.forEach { lvl ->
+                            val isLvlSelected = selectedEducationLevel == lvl
+                            FilterChip(
+                                selected = isLvlSelected,
+                                onClick = { selectedEducationLevel = lvl },
+                                label = { Text(lvl.displayName.split(" / ").first(), fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Learner Category Selection
             Text(
@@ -420,18 +529,25 @@ fun OnboardingScreen(
             Button(
                 onClick = {
                     val finalName = name.ifBlank { "Learner" }
+                    val finalGoal = if (targetDuration.isNotBlank()) "[Duration: $targetDuration] $goal" else goal
+                    val finalBackground = if (subjectsOfInterest.isNotBlank()) "Subjects: $subjectsOfInterest" else targetDuration
+                    val targetUserId = learningViewModel.currentUserId.ifBlank { "default_learner" }
                     val profile = LearnerProfile(
-                        userId = "default_learner",
+                        userId = targetUserId,
                         name = finalName,
                         targetDomain = selectedDomain,
                         subdomain = selectedSubdomain,
-                        goal = goal,
+                        goal = finalGoal,
                         targetRole = targetRole,
+                        previousBackground = finalBackground,
+                        currentLevel = currentKnowledgeLevel,
                         educationLevel = selectedEducationLevel,
                         learnerCategory = selectedCategory,
                         audienceLevel = selectedAudience,
                         dailyStudyMinutes = selectedDailyMinutes,
                         weeklyStudyDays = selectedWeeklyDays,
+                        preferredLanguageCode = currentLanguage.code,
+                        preferredContentLanguageCode = currentLanguage.code,
                         onboardingCompleted = true,
                         assessmentCompleted = false
                     )

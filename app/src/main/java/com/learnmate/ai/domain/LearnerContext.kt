@@ -35,8 +35,19 @@ data class LearnerContext(
     val pendingActivities: List<String> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()
 ) {
+    // ── Focus-Area Driven Architecture Accessors ──────────────────────────────
+    val focusArea: String get() = departmentOrBranch
+    val specialization: String get() = courseOrSpecialization
+    val targetLearningOutcome: String get() = primaryLearningGoal
+    val targetCareerRole: String get() = courseOrSpecialization
+    val educationLevel: String get() = educationalLevel
+    val targetDurationWeeks: Int get() = 12
+    val currentRoadmapPosition: Int get() = (completedActivities.size + 1).coerceAtLeast(1)
+    val verifiedSkillGaps: List<String> get() = existingAssessmentReport?.weaknesses ?: emptyList()
+    val diagnosticAssessmentRef: String? get() = existingAssessmentReport?.provenance?.operationId
+
     /**
-     * Returns true if the provided report was generated for a different profile version
+     * Returns true if the provided report or previous context was generated for a different profile version
      * (e.g. domain, branch, specialization, education level, knowledge level, primary goal, subjects, or language changed).
      */
     fun isDiagnosticStale(report: SkillGapReport?): Boolean {
@@ -47,6 +58,16 @@ data class LearnerContext(
         val reportDomainMatch = report.domain.equals(domain, ignoreCase = true)
         val reportSubdomainMatch = report.subdomain.isBlank() || report.subdomain.equals(departmentOrBranch, ignoreCase = true)
         return !reportDomainMatch || !reportSubdomainMatch
+    }
+
+    fun isDiagnosticStaleForContext(previousContext: LearnerContext?): Boolean {
+        if (previousContext == null) return true
+        if (previousContext.profileFingerprint.isNotBlank() && profileFingerprint.isNotBlank()) {
+            return !previousContext.profileFingerprint.equals(profileFingerprint, ignoreCase = true)
+        }
+        return !previousContext.domain.equals(domain, ignoreCase = true) ||
+               !previousContext.departmentOrBranch.equals(departmentOrBranch, ignoreCase = true) ||
+               !previousContext.primaryLearningGoal.equals(primaryLearningGoal, ignoreCase = true)
     }
 
     companion object {

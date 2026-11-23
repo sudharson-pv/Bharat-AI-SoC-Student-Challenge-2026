@@ -33,7 +33,8 @@ fun RoadmapScreen(
     learningViewModel: LearningViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToTutorWithTopic: (String) -> Unit,
-    onNavigateToDashboard: () -> Unit = {}
+    onNavigateToDashboard: () -> Unit = {},
+    onNavigateToAssessment: () -> Unit = {}
 ) {
     val roadmapState by learningViewModel.roadmapState.collectAsState()
     var selectedStepForDetails by remember { mutableStateOf<RoadmapStep?>(null) }
@@ -54,6 +55,11 @@ fun RoadmapScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.btn_navigate_back)
                         )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToDashboard) {
+                        Icon(Icons.Default.Home, contentDescription = "Home")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -90,6 +96,15 @@ fun RoadmapScreen(
                             fontSize = 15.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onNavigateToAssessment,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Quiz, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Take Diagnostic Assessment")
+                        }
                     }
                 }
             }

@@ -44,11 +44,12 @@ object PromptBudgeter {
 
     fun planPromptBudget(
         prompt: String,
-        requestedMaxOutput: Int = 256
+        requestedMaxOutput: Int = ActiveModelManifest.MAX_NEW_TOKENS
     ): BudgetedPromptPlan {
         val estimated = estimateTokens(prompt)
-        val available = (MAX_SEQ_LENGTH - estimated).coerceAtLeast(MIN_OUTPUT_HEADROOM)
-        val allowed = requestedMaxOutput.coerceIn(MIN_OUTPUT_HEADROOM, available)
+        val available = (MAX_SEQ_LENGTH - estimated - MIN_OUTPUT_HEADROOM).coerceAtLeast(1)
+        val maxAllowedCap = requestedMaxOutput.coerceIn(1, ActiveModelManifest.MAX_NEW_TOKENS)
+        val allowed = minOf(available, maxAllowedCap).coerceAtLeast(1)
         return BudgetedPromptPlan(
             formattedPrompt = prompt,
             estimatedPromptTokens = estimated,

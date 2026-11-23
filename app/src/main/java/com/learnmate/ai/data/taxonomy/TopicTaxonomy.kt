@@ -11,6 +11,21 @@ import com.learnmate.ai.domain.DomainCategory
  */
 object TopicTaxonomy {
 
+    fun normalizeDomain(domain: String): String {
+        val d = domain.trim().lowercase()
+        return when {
+            d.contains("computer") || d.contains("software") || d.contains("ai") || d.contains("algorithm") || d == "cs_it" -> "Computer Science and IT"
+            d.contains("electronic") || d.contains("vlsi") || d == "electronics_vlsi" -> "Electronics and VLSI"
+            d.contains("biotech") || d.contains("molecular") || d.contains("genetic") || d == "biotech" -> "Biotechnology"
+            d.contains("food") || d == "food_tech" -> "Food Technology"
+            d.contains("ui") || d.contains("ux") || d.contains("product design") || d == "ui_ux" -> "UI/UX and Product Design"
+            d.contains("mechanical") || d == "mech_eng" -> "Mechanical Engineering"
+            (d.contains("science") || d.contains("school") || d.contains("physics") || d.contains("chemistry") || d.contains("secondary")) &&
+                !d.contains("computer") && !d.contains("data") -> "School Science"
+            else -> domain.trim()
+        }
+    }
+
     val DOMAIN_CATEGORIES: List<DomainCategory> = listOf(
         DomainCategory(
             id = "electronics_vlsi",
@@ -58,6 +73,42 @@ object TopicTaxonomy {
                 "Stress, Strain & Hooke's Law",
                 "First & Second Laws of Thermodynamics",
                 "Heat Exchangers & Conduction"
+            )
+        ),
+        DomainCategory(
+            id = "biotechnology",
+            title = "Biotechnology",
+            description = "Molecular biology, recombinant DNA, PCR, genome editing, and bioprocess engineering",
+            iconName = "biotech",
+            subdomains = listOf("Molecular Biology", "Genetic Engineering", "Bioprocess Engineering"),
+            coreTopics = listOf(
+                "Recombinant DNA Technology & Restriction Cloning",
+                "PCR Amplification & Gel Electrophoresis",
+                "CRISPR-Cas9 Targeted Genome Editing"
+            )
+        ),
+        DomainCategory(
+            id = "food_tech",
+            title = "Food Technology",
+            description = "Food processing, preservation kinetics, water activity, and HACCP quality assurance",
+            iconName = "restaurant",
+            subdomains = listOf("Food Preservation", "Food Safety & Quality", "Food Engineering"),
+            coreTopics = listOf(
+                "Thermal Processing & Pasteurization (D & z Values)",
+                "Water Activity (aw) Control & Microbial Stability",
+                "HACCP Food Safety Principles & Critical Limits"
+            )
+        ),
+        DomainCategory(
+            id = "school_science",
+            title = "School Science",
+            description = "Secondary chemistry, Newtonian physics, stoichiometry, and foundational science",
+            iconName = "science",
+            subdomains = listOf("Secondary Chemistry", "Secondary Physics", "Cellular Biology"),
+            coreTopics = listOf(
+                "Chemical Reactions, Balancing & Stoichiometry",
+                "Newtonian Mechanics & Force Equilibrium",
+                "Acids, Bases, Salts and pH Calculation"
             )
         )
     )
@@ -273,6 +324,165 @@ object TopicTaxonomy {
             referenceChapter = "1 & 11",
             referenceSection = "1.2, 11.1-11.3",
             referenceIdentifier = "ISBN: 978-0470501979"
+        ),
+
+        // ── Biotechnology ────────────────────────────────────────────────────────
+        VerifiedTopicEntity(
+            topicId = "topic_dna_cloning",
+            domain = "Biotechnology",
+            subdomain = "Molecular Biology",
+            title = "Recombinant DNA Technology & Restriction Cloning",
+            description = "Restriction enzymes, plasmid cloning vectors, palindromic cleavage, and DNA ligase.",
+            verifiedExplanation = "Recombinant DNA technology combines genetic material from multiple sources. Type II restriction endonucleases recognize specific palindromic sequences (e.g. 5'-GAATTC-3' for EcoRI) and hydrolyze phosphodiester bonds to produce complementary sticky or blunt ends. DNA ligase subsequently seals the nicks in the phosphodiester backbone by forming covalent ester bonds between 5'-phosphate and 3'-hydroxyl groups.",
+            coreKeywordsJson = "[\"restriction enzyme\", \"plasmid\", \"sticky ends\", \"DNA ligase\", \"cloning vector\"]",
+            prerequisiteTopicIdsJson = "[]",
+            estimatedMinutes = 35,
+            referenceTitle = "Molecular Biology of the Gene",
+            referenceAuthor = "James D. Watson, Tania A. Baker, Stephen P. Bell",
+            referenceEdition = "7th Edition",
+            referenceChapter = "5 & 7",
+            referenceSection = "5.3, 7.1-7.4",
+            referenceIdentifier = "ISBN: 978-0321762436"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_pcr_amplification",
+            domain = "Biotechnology",
+            subdomain = "Molecular Biology",
+            title = "PCR Amplification & Gel Electrophoresis",
+            description = "Three-step thermal cycling, thermostable Taq polymerase, and agarose matrix sieving.",
+            verifiedExplanation = "The Polymerase Chain Reaction exponentially amplifies target DNA sequences through repeated cycles of thermal denaturation (~95°C), primer annealing (~55°C), and primer extension (~72°C) catalyzed by thermostable Taq DNA polymerase. Following amplification, fragments are resolved on an agarose gel matrix under an electric field, migrating toward the positive anode inversely proportional to the log of their molecular weight.",
+            coreKeywordsJson = "[\"PCR\", \"Taq polymerase\", \"primer annealing\", \"agarose gel\", \"electrophoresis\"]",
+            prerequisiteTopicIdsJson = "[\"topic_dna_cloning\"]",
+            estimatedMinutes = 40,
+            referenceTitle = "Principles of Gene Manipulation and Genomics",
+            referenceAuthor = "Sandy B. Primrose & Richard Twyman",
+            referenceEdition = "7th Edition",
+            referenceChapter = "2",
+            referenceSection = "2.2-2.5",
+            referenceIdentifier = "ISBN: 978-1405135443"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_crispr_cas9",
+            domain = "Biotechnology",
+            subdomain = "Genetic Engineering",
+            title = "CRISPR-Cas9 Targeted Genome Editing",
+            description = "Single guide RNA (sgRNA), Cas9 endonuclease, Protospacer Adjacent Motif (PAM), and DSB repair.",
+            verifiedExplanation = "CRISPR-Cas9 provides RNA-programmable targeted genome editing. A chimeric single-guide RNA (sgRNA) directs the Cas9 endonuclease to a complementary 20-nucleotide genomic target sequence immediately adjacent to a 5'-NGG-3' Protospacer Adjacent Motif (PAM). Cas9 introduces a site-specific double-strand break (DSB) 3-4 base pairs upstream of the PAM, which is repaired via Non-Homologous End Joining (NHEJ) for gene knockout or Homology-Directed Repair (HDR) for precise gene editing.",
+            coreKeywordsJson = "[\"CRISPR\", \"Cas9\", \"sgRNA\", \"PAM motif\", \"double-strand break\", \"NHEJ\"]",
+            prerequisiteTopicIdsJson = "[\"topic_pcr_amplification\"]",
+            estimatedMinutes = 45,
+            referenceTitle = "Genomes 4",
+            referenceAuthor = "T.A. Brown",
+            referenceEdition = "4th Edition",
+            referenceChapter = "19",
+            referenceSection = "19.3",
+            referenceIdentifier = "ISBN: 978-0815345084"
+        ),
+
+        // ── Food Technology ──────────────────────────────────────────────────────
+        VerifiedTopicEntity(
+            topicId = "topic_food_thermal_preservation",
+            domain = "Food Technology",
+            subdomain = "Food Preservation",
+            title = "Thermal Processing & Pasteurization (D & z Values)",
+            description = "Thermal death kinetics, decimal reduction time (D-value), z-value temperature sensitivity, and commercial sterility.",
+            verifiedExplanation = "Thermal processing destroys pathogenic and spoilage microorganisms in food systems. Microbial destruction follows first-order kinetics: the Decimal Reduction Time (D-value) is the time in minutes at a specified temperature to destroy 90% (1 log cycle) of a target organism. The z-value is the temperature increase required to reduce the D-value by 90% (1 log cycle). In commercial canning of low-acid foods, a 12D process against Clostridium botulinum spores ensures public health safety.",
+            coreKeywordsJson = "[\"pasteurization\", \"D-value\", \"z-value\", \"thermal death time\", \"Clostridium botulinum\"]",
+            prerequisiteTopicIdsJson = "[]",
+            estimatedMinutes = 35,
+            referenceTitle = "Food Processing Technology: Principles and Practice",
+            referenceAuthor = "P.J. Fellows",
+            referenceEdition = "4th Edition",
+            referenceChapter = "13 & 14",
+            referenceSection = "13.1-13.4",
+            referenceIdentifier = "ISBN: 978-0081019078"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_food_water_activity",
+            domain = "Food Technology",
+            subdomain = "Food Engineering",
+            title = "Water Activity (aw) Control & Microbial Stability",
+            description = "Water activity thermodynamic definition, moisture sorption isotherms, and bacterial growth limits.",
+            verifiedExplanation = "Water activity (aw = p / p0) represents the ratio of water vapor pressure in food to that of pure water at the same temperature. It measures the free, unbound water available to participate in chemical reactions and sustain microbial growth. Most bacteria are inhibited below aw 0.91, C. botulinum is arrested below 0.93, yeasts below 0.88, and molds below 0.80. Preservation methods such as salting, sugar addition, and dehydration depress water activity into shelf-stable regimes.",
+            coreKeywordsJson = "[\"water activity\", \"moisture sorption isotherm\", \"microbial stability\", \"preservation\"]",
+            prerequisiteTopicIdsJson = "[\"topic_food_thermal_preservation\"]",
+            estimatedMinutes = 40,
+            referenceTitle = "Introduction to Food Engineering",
+            referenceAuthor = "R. Paul Singh & Dennis R. Heldman",
+            referenceEdition = "5th Edition",
+            referenceChapter = "11",
+            referenceSection = "11.1-11.4",
+            referenceIdentifier = "ISBN: 978-0123849052"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_food_haccp",
+            domain = "Food Technology",
+            subdomain = "Food Safety & Quality",
+            title = "HACCP Food Safety Principles & Critical Limits",
+            description = "Hazard analysis, critical control points (CCPs), critical limits, monitoring, and corrective actions.",
+            verifiedExplanation = "Hazard Analysis and Critical Control Point (HACCP) is a systematic, preventive approach to food safety. The 7 principles comprise: (1) Conduct hazard analysis, (2) Determine Critical Control Points (CCPs), (3) Establish critical limits for preventative measures, (4) Establish monitoring procedures, (5) Establish corrective actions, (6) Establish verification procedures, and (7) Establish record-keeping and documentation.",
+            coreKeywordsJson = "[\"HACCP\", \"critical control point\", \"critical limit\", \"food safety\", \"verification\"]",
+            prerequisiteTopicIdsJson = "[\"topic_food_water_activity\"]",
+            estimatedMinutes = 35,
+            referenceTitle = "Food Safety Management: A Practical Guide for the Food Industry",
+            referenceAuthor = "Yasmine Motarjemi & Huub Lelieveld",
+            referenceEdition = "1st Edition",
+            referenceChapter = "24",
+            referenceSection = "24.2-24.6",
+            referenceIdentifier = "ISBN: 978-0123815040"
+        ),
+
+        // ── School Science ───────────────────────────────────────────────────────
+        VerifiedTopicEntity(
+            topicId = "topic_cbse_chemical_reactions",
+            domain = "School Science",
+            subdomain = "Secondary Chemistry",
+            title = "Chemical Reactions, Balancing & Stoichiometry",
+            description = "Law of conservation of mass, balancing chemical equations, and redox reactions.",
+            verifiedExplanation = "Chemical reactions involve the breaking and forming of chemical bonds without creating or destroying matter, adhering to the Law of Conservation of Mass. A balanced chemical equation has identical numbers of each type of atom on both reactant and product sides. Primary reaction classes include combination, decomposition, single displacement, double displacement, and oxidation-reduction (redox) reactions.",
+            coreKeywordsJson = "[\"chemical equation\", \"balancing\", \"stoichiometry\", \"conservation of mass\", \"redox\"]",
+            prerequisiteTopicIdsJson = "[]",
+            estimatedMinutes = 30,
+            referenceTitle = "Science: Textbook for Class X",
+            referenceAuthor = "NCERT Curriculum Framework",
+            referenceEdition = "Revised Edition",
+            referenceChapter = "1",
+            referenceSection = "1.1-1.3",
+            referenceIdentifier = "CBSE/NCERT-SCI-X-CH01"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_cbse_acids_bases",
+            domain = "School Science",
+            subdomain = "Secondary Chemistry",
+            title = "Acids, Bases, Salts and pH Calculation",
+            description = "Arrhenius and Bronsted-Lowry acid-base theories, logarithmic pH scale, and neutralization reactions.",
+            verifiedExplanation = "Acids donate protons (H+) in aqueous solution, yielding hydronium ions (H3O+), whereas bases generate hydroxide ions (OH-). The pH scale is logarithmic: pH = -log10[H+]. A decrease of 1 pH unit represents a tenfold increase in hydrogen ion concentration. Neutralization between an acid and a base produces a salt and water (e.g. HCl + NaOH -> NaCl + H2O).",
+            coreKeywordsJson = "[\"acid\", \"base\", \"pH scale\", \"neutralization\", \"Arrhenius\"]",
+            prerequisiteTopicIdsJson = "[\"topic_cbse_chemical_reactions\"]",
+            estimatedMinutes = 30,
+            referenceTitle = "Science: Textbook for Class X",
+            referenceAuthor = "NCERT Curriculum Framework",
+            referenceEdition = "Revised Edition",
+            referenceChapter = "2",
+            referenceSection = "2.1-2.4",
+            referenceIdentifier = "CBSE/NCERT-SCI-X-CH02"
+        ),
+        VerifiedTopicEntity(
+            topicId = "topic_cbse_newton_mechanics",
+            domain = "School Science",
+            subdomain = "Secondary Physics",
+            title = "Newtonian Mechanics & Force Equilibrium",
+            description = "Newton's Three Laws of Motion, momentum conservation, and gravitational attraction.",
+            verifiedExplanation = "Classical mechanics describes the motion of macroscopic bodies under applied forces. Newton's First Law states bodies remain in uniform motion unless acted upon by a net external force (inertia). Newton's Second Law establishes F_net = m * a. Newton's Third Law dictates that every action produces an equal and opposite reaction force. Linear momentum (p = m * v) is strictly conserved in isolated systems.",
+            coreKeywordsJson = "[\"Newton's laws\", \"inertia\", \"force\", \"momentum conservation\", \"acceleration\"]",
+            prerequisiteTopicIdsJson = "[]",
+            estimatedMinutes = 35,
+            referenceTitle = "Conceptual Physics",
+            referenceAuthor = "Paul G. Hewitt",
+            referenceEdition = "12th Edition",
+            referenceChapter = "2-5",
+            referenceSection = "2.1-5.6",
+            referenceIdentifier = "ISBN: 978-0321909107"
         )
     )
 
@@ -413,6 +623,102 @@ object TopicTaxonomy {
             optionsJson = "[\"The negative temperature gradient (-dT/dx)\", \"The square of the fluid velocity\", \"The atmospheric pressure\", \"The magnetic permeability of the metal\"]",
             correctIndex = 0,
             verifiedExplanation = "Fourier's Law specifies that conduction heat flux (q/A) equals -k * (dT/dx), indicating that heat spontaneously flows down a negative temperature gradient."
+        ),
+
+        // ── Biotechnology ────────────────────────────────────────────────────────
+        AssessmentQuestionEntity(
+            questionId = "q_bio_01",
+            domain = "Biotechnology",
+            subdomain = "Molecular Biology",
+            topic = "Recombinant DNA Technology & Restriction Cloning",
+            questionText = "What type of nucleotide recognition sequence is characteristically cleaved by Type II restriction endonucleases (such as EcoRI)?",
+            optionsJson = "[\"Palindromic sequences with two-fold rotational symmetry\", \"Homopolymeric poly-A repeat tracts\", \"Telomeric hexanucleotide repeat sequences\", \"Unpaired single-stranded hairpin loops\"]",
+            correctIndex = 0,
+            verifiedExplanation = "Type II restriction endonucleases typically recognize short palindromic sequences (e.g. 5'-GAATTC-3') and cleave both strands symmetrically to generate sticky or blunt ends."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_bio_02",
+            domain = "Biotechnology",
+            subdomain = "Molecular Biology",
+            topic = "PCR Amplification & Gel Electrophoresis",
+            questionText = "In standard three-step PCR thermal cycling, what is the primary biochemical purpose of the 72°C extension step?",
+            optionsJson = "[\"Optimal enzymatic synthesis of DNA by thermostable Taq polymerase\", \"Complete thermal denaturation of double-stranded DNA template\", \"Annealing of forward and reverse oligonucleotide primers to template\", \"Inactivation of exonucleases and proteases\"]",
+            correctIndex = 0,
+            verifiedExplanation = "Taq polymerase exhibits peak catalytic activity around 72°C, extending primers along the single-stranded template in the 5' to 3' direction."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_bio_03",
+            domain = "Biotechnology",
+            subdomain = "Genetic Engineering",
+            topic = "CRISPR-Cas9 Targeted Genome Editing",
+            questionText = "In the CRISPR-Cas9 genome editing system, what adjacent sequence is required on the target DNA immediately following the protospacer for Cas9 binding and cleavage?",
+            optionsJson = "[\"Protospacer Adjacent Motif (PAM, typically 5'-NGG-3')\", \"TATA box promoter element\", \"Polyadenylation consensus sequence\", \"Shine-Dalgarno ribosomal binding site\"]",
+            correctIndex = 0,
+            verifiedExplanation = "SpCas9 strictly requires a Protospacer Adjacent Motif (PAM; 5'-NGG-3') downstream of the 20-nucleotide guide RNA target sequence to initiate DNA unwinding and R-loop formation."
+        ),
+
+        // ── Food Technology ──────────────────────────────────────────────────────
+        AssessmentQuestionEntity(
+            questionId = "q_food_01",
+            domain = "Food Technology",
+            subdomain = "Food Preservation",
+            topic = "Thermal Processing & Pasteurization (D & z Values)",
+            questionText = "In food thermal sterilization, what does the Decimal Reduction Time (D-value) represent?",
+            optionsJson = "[\"Time in minutes at a given temperature required to destroy 90% (1 log reduction) of a microbial population\", \"Temperature increase required to reduce the thermal death time by 90%\", \"Total time required to achieve commercial sterility at 121.1°C\", \"Number of spores surviving a 12D botulinum cook\"]",
+            correctIndex = 0,
+            verifiedExplanation = "The D-value is the exposure time at a constant temperature required to reduce the surviving microbial population by 90% (1 log cycle)."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_food_02",
+            domain = "Food Technology",
+            subdomain = "Food Engineering",
+            topic = "Water Activity (aw) Control & Microbial Stability",
+            questionText = "What is the recognized minimum water activity (aw) limit below which Clostridium botulinum cannot produce neurotoxin?",
+            optionsJson = "[\"0.93\", \"0.85\", \"0.75\", \"0.60\"]",
+            correctIndex = 0,
+            verifiedExplanation = "Clostridium botulinum growth and toxin production are completely inhibited at water activity below 0.93 (equivalent to ~10% NaCl in water phase)."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_food_03",
+            domain = "Food Technology",
+            subdomain = "Food Safety & Quality",
+            topic = "HACCP Food Safety Principles & Critical Limits",
+            questionText = "Under Codex Alimentarius HACCP guidelines, what is the critical step defined to prevent, eliminate, or reduce a food safety hazard to an acceptable level?",
+            optionsJson = "[\"Critical Control Point (CCP)\", \"Standard Operating Procedure (SOP)\", \"Good Manufacturing Practice (GMP)\", \"Corrective Action Log (CAL)\"]",
+            correctIndex = 0,
+            verifiedExplanation = "A Critical Control Point (CCP) is a specific operational step where control can be applied to prevent or eliminate a hazard or reduce it to an acceptable level."
+        ),
+
+        // ── School Science ───────────────────────────────────────────────────────
+        AssessmentQuestionEntity(
+            questionId = "q_sci_01",
+            domain = "School Science",
+            subdomain = "Secondary Chemistry",
+            topic = "Chemical Reactions, Balancing & Stoichiometry",
+            questionText = "What does the Law of Conservation of Mass dictate for any closed chemical reaction?",
+            optionsJson = "[\"Total mass of reactants equals the total mass of products\", \"Energy increases exponentially during exothermic changes\", \"Gas volume remains constant regardless of pressure\", \"Number of molecules must be identical on both sides\"]",
+            correctIndex = 0,
+            verifiedExplanation = "In a closed chemical system, matter is neither created nor destroyed during a chemical reaction; hence the total mass of the products must equal the total mass of reactants."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_sci_02",
+            domain = "School Science",
+            subdomain = "Secondary Chemistry",
+            topic = "Acids, Bases, Salts and pH Calculation",
+            questionText = "If a solution's hydrogen ion concentration [H+] increases by a factor of 100, how does its pH value change?",
+            optionsJson = "[\"The pH decreases by 2 units\", \"The pH increases by 2 units\", \"The pH decreases by 100 units\", \"The pH increases by 10 units\"]",
+            correctIndex = 0,
+            verifiedExplanation = "pH is defined as -log10[H+]. Increasing [H+] by 100x (10^2) decreases the pH by exactly 2 units."
+        ),
+        AssessmentQuestionEntity(
+            questionId = "q_sci_03",
+            domain = "School Science",
+            subdomain = "Secondary Physics",
+            topic = "Newtonian Mechanics & Force Equilibrium",
+            questionText = "According to Newton's Second Law of Motion, what is the acceleration of an object directly proportional to?",
+            optionsJson = "[\"The net force acting upon it\", \"The object's total mass\", \"The square of its velocity\", \"The gravitational potential energy\"]",
+            correctIndex = 0,
+            verifiedExplanation = "F = m * a implies acceleration a = F_net / m, meaning acceleration is directly proportional to net force and inversely proportional to mass."
         )
     )
 }

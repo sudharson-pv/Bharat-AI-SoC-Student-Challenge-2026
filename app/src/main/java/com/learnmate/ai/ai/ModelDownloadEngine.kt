@@ -480,24 +480,64 @@ class ModelDownloadEngine(
             return@withContext false
         }
 
-        // 1. Download Model File (Resumable into .part quarantine)
-        val modelOk = executeResumableStream(
-            sourceUrl = modelSourceUrl,
-            destinationFile = partialModelFile,
-            targetSizeBytes = entry.modelSizeBytes,
-            label = "Downloading AI model (${entry.displayName})",
-            onProgressUpdate = onProgressUpdate
+        // 1. Download Model File (or fast-copy from pre-staged local storage)
+        val stagedModelCandidates = listOf(
+            File("/data/local/tmp", entry.modelFileName),
+            File("/data/local/tmp/models", entry.modelFileName),
+            File("/data/local/tmp/${entry.modelId}", entry.modelFileName),
+            File(modelsDirectory, entry.modelFileName),
+            File(File(android.os.Environment.getExternalStorageDirectory(), "Download"), entry.modelFileName)
         )
+        val foundStagedModel = stagedModelCandidates.firstOrNull { it.exists() && it.isFile && it.length() == entry.modelSizeBytes && it.canRead() }
+
+        val modelOk: Boolean = if (foundStagedModel != null && (!partialModelFile.exists() || partialModelFile.length() != entry.modelSizeBytes)) {
+            Log.i(TAG, "Found authentic pre-staged model at ${foundStagedModel.absolutePath}. Fast-copying to quarantine...")
+            copyStagedFileWithProgress(
+                sourceFile = foundStagedModel,
+                destinationFile = partialModelFile,
+                targetSizeBytes = entry.modelSizeBytes,
+                label = "Staging local model (${entry.displayName})",
+                onProgressUpdate = onProgressUpdate
+            )
+        } else {
+            executeResumableStreamOrParts(
+                sourceUrl = modelSourceUrl,
+                destinationFile = partialModelFile,
+                targetSizeBytes = entry.modelSizeBytes,
+                label = "Downloading AI model (${entry.displayName})",
+                onProgressUpdate = onProgressUpdate
+            )
+        }
         if (!modelOk) return@withContext false
 
-        // 2. Download Tokenizer File (into .part quarantine)
-        val tokOk = executeResumableStream(
-            sourceUrl = tokenizerSourceUrl,
-            destinationFile = partialTokenizerFile,
-            targetSizeBytes = entry.tokenizerSizeBytes,
-            label = "Downloading Tokenizer (${entry.tokenizerFileName})",
-            onProgressUpdate = onProgressUpdate
+        // 2. Download Tokenizer File (or copy from pre-staged local storage)
+        val stagedTokCandidates = listOf(
+            File("/data/local/tmp", entry.tokenizerFileName),
+            File("/data/local/tmp/models", entry.tokenizerFileName),
+            File("/data/local/tmp/${entry.modelId}", entry.tokenizerFileName),
+            File(modelsDirectory, entry.tokenizerFileName),
+            File(File(android.os.Environment.getExternalStorageDirectory(), "Download"), entry.tokenizerFileName)
         )
+        val foundStagedTok = stagedTokCandidates.firstOrNull { it.exists() && it.isFile && it.length() == entry.tokenizerSizeBytes && it.canRead() }
+
+        val tokOk: Boolean = if (foundStagedTok != null && (!partialTokenizerFile.exists() || partialTokenizerFile.length() != entry.tokenizerSizeBytes)) {
+            Log.i(TAG, "Found authentic pre-staged tokenizer at ${foundStagedTok.absolutePath}. Fast-copying to quarantine...")
+            copyStagedFileWithProgress(
+                sourceFile = foundStagedTok,
+                destinationFile = partialTokenizerFile,
+                targetSizeBytes = entry.tokenizerSizeBytes,
+                label = "Staging local tokenizer (${entry.tokenizerFileName})",
+                onProgressUpdate = onProgressUpdate
+            )
+        } else {
+            executeResumableStream(
+                sourceUrl = tokenizerSourceUrl,
+                destinationFile = partialTokenizerFile,
+                targetSizeBytes = entry.tokenizerSizeBytes,
+                label = "Downloading Tokenizer (${entry.tokenizerFileName})",
+                onProgressUpdate = onProgressUpdate
+            )
+        }
         if (!tokOk) return@withContext false
 
         _downloadFlow.value = _downloadFlow.value.copy(
@@ -564,6 +604,225 @@ class ModelDownloadEngine(
         onProgressUpdate?.invoke(_downloadFlow.value)
 
         return@withContext verifyAndQualifyInstalledModel()
+    }
+
+    private suspend fun copyStagedFileWithProgress(
+        sourceFile: File,
+        destinationFile: File,
+        targetSizeBytes: Long,
+        label: String,
+        onProgressUpdate: ((DownloadSnapshot) -> Unit)?
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val parentDir = destinationFile.parentFile ?: modelsDirectory
+            if (!parentDir.exists()) parentDir.mkdirs()
+
+            _downloadFlow.value = _downloadFlow.value.copy(
+                state = ModelInstallationState.DOWNLOADING,
+                downloadedBytes = 0L,
+                totalBytes = targetSizeBytes,
+                percent = 0,
+                currentStage = label
+            )
+            onProgressUpdate?.invoke(_downloadFlow.value)
+
+            val buffer = ByteArray(BUFFER_SIZE)
+            var copied = 0L
+            var lastSampleTime = System.currentTimeMillis()
+            var bytesSinceSample = 0L
+
+            sourceFile.inputStream().use { input ->
+                FileOutputStream(destinationFile, false).use { output ->
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        if (isCancelled.get()) throw CancellationException("Operation cancelled by user.")
+                        output.write(buffer, 0, read)
+                        copied += read
+                        bytesSinceSample += read
+
+                        val now = System.currentTimeMillis()
+                        val elapsed = now - lastSampleTime
+                        if (elapsed >= 300) {
+                            val speed = (bytesSinceSample * 1000L) / elapsed
+                            _downloadFlow.value = _downloadFlow.value.copy(
+                                state = ModelInstallationState.DOWNLOADING,
+                                downloadedBytes = copied,
+                                totalBytes = targetSizeBytes,
+                                percent = if (targetSizeBytes > 0) ((copied * 100) / targetSizeBytes).toInt() else 0,
+                                speedBytesPerSec = speed,
+                                currentStage = label
+                            )
+                            onProgressUpdate?.invoke(_downloadFlow.value)
+                            lastSampleTime = now
+                            bytesSinceSample = 0L
+                        }
+                    }
+                    output.flush()
+                }
+            }
+            _downloadFlow.value = _downloadFlow.value.copy(
+                downloadedBytes = targetSizeBytes,
+                percent = 100
+            )
+            onProgressUpdate?.invoke(_downloadFlow.value)
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying staged file: ${e.message}", e)
+            return@withContext false
+        }
+    }
+
+    private suspend fun executeResumableStreamOrParts(
+        sourceUrl: String,
+        destinationFile: File,
+        targetSizeBytes: Long,
+        label: String,
+        onProgressUpdate: ((DownloadSnapshot) -> Unit)?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val entry = currentCatalogEntry
+        if (destinationFile.exists() && destinationFile.length() == targetSizeBytes) {
+            return@withContext true
+        }
+
+        // GitHub Releases limits release assets to 2 GiB.
+        // For models > 2GB (like 3B at 2.38 GB), assets are split into .part1 and .part2
+        val isMultipart = (targetSizeBytes > 2_000_000_000L) || sourceUrl.contains("3b", ignoreCase = true)
+        if (isMultipart) {
+            val part1Url = "${sourceUrl}.part1"
+            val part2Url = "${sourceUrl}.part2"
+            val halfSize = targetSizeBytes / 2L
+            val partSizes = listOf(halfSize, targetSizeBytes - halfSize)
+            val partUrls = listOf(part1Url, part2Url)
+
+            var accumulatedBytes = 0L
+            for (i in partUrls.indices) {
+                if (isCancelled.get()) return@withContext false
+                val partUrl = partUrls[i]
+                val partTargetSize = partSizes[i]
+                val partExpectedEnd = accumulatedBytes + partTargetSize
+                val currentFileLength = if (destinationFile.exists()) destinationFile.length() else 0L
+
+                if (currentFileLength < partExpectedEnd) {
+                    val partOk = executeResumableStreamSegment(
+                        sourceUrl = partUrl,
+                        destinationFile = destinationFile,
+                        segmentTargetBytes = partTargetSize,
+                        totalOverallBytes = targetSizeBytes,
+                        overallOffset = accumulatedBytes,
+                        label = "$label (Part ${i + 1}/${partUrls.size})",
+                        onProgressUpdate = onProgressUpdate
+                    )
+                    if (!partOk) {
+                        Log.w(TAG, "Failed downloading part ${i + 1} from $partUrl")
+                        // If part download failed, attempt single file fallback
+                        return@withContext executeResumableStream(sourceUrl, destinationFile, targetSizeBytes, label, onProgressUpdate)
+                    }
+                }
+                accumulatedBytes = partExpectedEnd
+            }
+            return@withContext (destinationFile.exists() && destinationFile.length() == targetSizeBytes)
+        } else {
+            return@withContext executeResumableStream(sourceUrl, destinationFile, targetSizeBytes, label, onProgressUpdate)
+        }
+    }
+
+    private suspend fun executeResumableStreamSegment(
+        sourceUrl: String,
+        destinationFile: File,
+        segmentTargetBytes: Long,
+        totalOverallBytes: Long,
+        overallOffset: Long,
+        label: String,
+        onProgressUpdate: ((DownloadSnapshot) -> Unit)?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val currentFileLength = if (destinationFile.exists()) destinationFile.length() else 0L
+        val segmentDownloaded = (currentFileLength - overallOffset).coerceAtLeast(0L)
+        if (segmentDownloaded >= segmentTargetBytes) {
+            return@withContext true
+        }
+
+        _downloadFlow.value = _downloadFlow.value.copy(
+            state = ModelInstallationState.DOWNLOADING,
+            downloadedBytes = currentFileLength,
+            totalBytes = totalOverallBytes,
+            percent = if (totalOverallBytes > 0) ((currentFileLength * 100) / totalOverallBytes).toInt() else 0,
+            currentStage = label
+        )
+        onProgressUpdate?.invoke(_downloadFlow.value)
+
+        var connection: HttpURLConnection? = null
+        try {
+            connection = openConnectionWithRedirects(sourceUrl, segmentDownloaded)
+            val responseCode = connection.responseCode
+            val isPartial = (responseCode == HttpURLConnection.HTTP_PARTIAL)
+            val isOk = (responseCode == HttpURLConnection.HTTP_OK)
+
+            if (!isOk && !isPartial) {
+                Log.w(TAG, "HTTP Error $responseCode for segment $sourceUrl")
+                return@withContext false
+            }
+
+            val append = (currentFileLength > 0L)
+            val outputStream = FileOutputStream(destinationFile, append)
+            val inputStream: InputStream = connection.inputStream
+
+            var currentDownloaded = currentFileLength
+            val buffer = ByteArray(BUFFER_SIZE)
+            var bytesRead: Int
+            var lastSampleTime = System.currentTimeMillis()
+            var bytesSinceSample = 0L
+
+            var isComplete = false
+            outputStream.use { fos: FileOutputStream ->
+                inputStream.use { fis: InputStream ->
+                    while (fis.read(buffer).also { bytesRead = it } != -1) {
+                        if (isCancelled.get()) throw CancellationException("Cancelled")
+                        if (isPaused.get()) {
+                            _downloadFlow.value = _downloadFlow.value.copy(
+                                state = ModelInstallationState.DOWNLOAD_INTERRUPTED,
+                                downloadedBytes = currentDownloaded,
+                                currentStage = "Download paused"
+                            )
+                            onProgressUpdate?.invoke(_downloadFlow.value)
+                            return@withContext false
+                        }
+
+                        fos.write(buffer, 0, bytesRead)
+                        currentDownloaded += bytesRead
+                        bytesSinceSample += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        val elapsed = now - lastSampleTime
+                        if (elapsed >= 500) {
+                            val speedBps = (bytesSinceSample * 1000L) / elapsed
+                            val remainingBytes = (totalOverallBytes - currentDownloaded).coerceAtLeast(0L)
+                            val etaSec = if (speedBps > 0) remainingBytes / speedBps else 0L
+
+                            _downloadFlow.value = _downloadFlow.value.copy(
+                                state = ModelInstallationState.DOWNLOADING,
+                                downloadedBytes = currentDownloaded,
+                                totalBytes = totalOverallBytes,
+                                percent = if (totalOverallBytes > 0) ((currentDownloaded * 100) / totalOverallBytes).toInt() else 0,
+                                speedBytesPerSec = speedBps,
+                                etaSeconds = etaSec,
+                                currentStage = label
+                            )
+                            onProgressUpdate?.invoke(_downloadFlow.value)
+                            lastSampleTime = now
+                            bytesSinceSample = 0L
+                        }
+                    }
+                    fos.flush()
+                    isComplete = true
+                }
+            }
+            return@withContext isComplete
+        } catch (e: Exception) {
+            Log.e(TAG, "Segment download error: ${e.message}", e)
+            return@withContext false
+        } finally {
+            connection?.disconnect()
+        }
     }
 
     private suspend fun executeResumableStream(

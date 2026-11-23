@@ -19,12 +19,18 @@ import java.security.MessageDigest
  */
 class ModelAssetManager(
     private val appFilesDir: File,
-    private val devProvisioningDir: File = File("/data/local/tmp")
+    private val devProvisioningDir: File = File("/data/local/tmp"),
+    private val activeModelIdProvider: (() -> String)? = null
 ) {
     companion object {
         private const val TAG = "ModelAssetManager"
         private const val STREAM_BUFFER_BYTES = 64 * 1024 // 64 KiB buffer
     }
+
+    var activeModelIdOverride: String? = null
+
+    val activeModelId: String
+        get() = activeModelIdOverride ?: activeModelIdProvider?.invoke() ?: ActiveModelManifest.MODEL_ID
 
     data class ProvisioningResult(
         val state: ModelRuntimeState,
@@ -38,10 +44,10 @@ class ModelAssetManager(
         get() = File(appFilesDir, "models")
 
     val activeModelFile: File
-        get() = getModelFile(ActiveModelManifest.MODEL_ID)
+        get() = getModelFile(activeModelId)
 
     val activeTokenizerFile: File
-        get() = getTokenizerFile(ActiveModelManifest.MODEL_ID)
+        get() = getTokenizerFile(activeModelId)
 
     fun ensureModelsDirectory(): File {
         val dir = modelsDirectory
@@ -122,21 +128,25 @@ class ModelAssetManager(
     }
 
     fun isValidInstalledModel(
-        minPteBytes: Long = ActiveModelManifest.EXPECTED_MODEL_SIZE_BYTES,
-        minTokenizerBytes: Long = ActiveModelManifest.EXPECTED_TOKENIZER_SIZE_BYTES
+        minPteBytes: Long = 0L,
+        minTokenizerBytes: Long = 0L
     ): Boolean {
+        val entry = ModelCatalog.getEntryById(activeModelId) ?: ModelCatalog.ENTRY_LLAMA_3_2_1B
         val pte = activeModelFile
         val tok = activeTokenizerFile
-        return pte.exists() && pte.isFile && pte.canRead() && pte.length() >= minPteBytes && pte.length() == ActiveModelManifest.EXPECTED_MODEL_SIZE_BYTES &&
-            tok.exists() && tok.isFile && tok.canRead() && tok.length() >= minTokenizerBytes && tok.length() == ActiveModelManifest.EXPECTED_TOKENIZER_SIZE_BYTES
+        val expectedPteSize = entry.modelSizeBytes
+        val expectedTokSize = entry.tokenizerSizeBytes
+        return pte.exists() && pte.isFile && pte.canRead() && pte.length() == expectedPteSize &&
+            tok.exists() && tok.isFile && tok.canRead() && tok.length() == expectedTokSize
     }
 
     suspend fun isCryptographicallyVerifiedModel(): Boolean = withContext(Dispatchers.IO) {
         if (!isValidInstalledModel()) return@withContext false
+        val entry = ModelCatalog.getEntryById(activeModelId) ?: ModelCatalog.ENTRY_LLAMA_3_2_1B
         val tokSha = computeFileSha256(activeTokenizerFile)
-        if (!tokSha.equals(ActiveModelManifest.EXPECTED_TOKENIZER_SHA256, ignoreCase = true)) return@withContext false
+        if (!tokSha.equals(entry.tokenizerSha256, ignoreCase = true)) return@withContext false
         val pteSha = computeFileSha256(activeModelFile)
-        pteSha.equals(ActiveModelManifest.EXPECTED_MODEL_SHA256, ignoreCase = true)
+        pteSha.equals(entry.modelSha256, ignoreCase = true)
     }
 
     fun cleanUpStalePartialFiles() {

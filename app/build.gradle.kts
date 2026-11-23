@@ -1,9 +1,25 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+val localProps = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { stream -> this.load(stream) }
+    }
+}
+val youtubeApiKey = (localProps.getProperty("YOUTUBE_API_KEY")
+    ?: (project.findProperty("YOUTUBE_API_KEY") as? String)
+    ?: System.getenv("YOUTUBE_API_KEY")
+    ?: "")
+val youtubeCertSha1 = (localProps.getProperty("YOUTUBE_CERT_SHA1")
+    ?: (project.findProperty("YOUTUBE_CERT_SHA1") as? String)
+    ?: "0AB7DD30A89042C2CF6DADEF1EBA41775671B9AD")
 
 android {
     namespace = "com.learnmate.ai"
@@ -15,6 +31,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
+        buildConfigField("String", "YOUTUBE_CERT_SHA1", "\"$youtubeCertSha1\"")
+        buildConfigField("String", "YOUTUBE_PACKAGE_NAME", "\"com.learnmate.ai\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -12,7 +12,7 @@ object ActiveModelManifest {
     const val QUANTIZATION_SCHEME = "8da4w + Embedding (4,32)"
     const val TARGET_BACKEND = "XNNPACK CPU"
     const val EXECUTORCH_RUNTIME_VERSION = "1.4.0"
-    const val MAX_SEQ_LENGTH = 512
+    const val MAX_SEQ_LENGTH = 2048
     const val MAX_CONTEXT_LENGTH = 2048
     const val MIN_VALID_PTE_BYTES = 100L * 1024L * 1024L // >= 100 MiB sanity check
     const val MIN_VALID_TOKENIZER_BYTES = 100L * 1024L   // >= 100 KiB sanity check
@@ -21,14 +21,16 @@ object ActiveModelManifest {
     const val EXPECTED_MODEL_SIZE_BYTES = 803_033_472L
     const val EXPECTED_MODEL_SHA256 = "aa1e127484fed5bb2b28ba7f774fcd206c1f2f997ed71cfd9ded800956eb5301"
 
-    // Tokenizer & Sequence Arithmetic Invariants (Gate 5.8 Hardened)
+    // Tokenizer & Sequence Arithmetic Invariants (Gate 5.8 Hardened, Gate 6.17 1000-Token Expansion)
     const val EXPECTED_TOKENIZER_SHA256 = "82e9d31979e92ab929cd544440f129d9ecd797b69e327f80f17e1c50d5551b55"
     const val EXPECTED_TOKENIZER_SIZE_BYTES = 2_183_982L
     const val BASE_VOCAB_SIZE = 128_000
     const val SPECIAL_TOKENS_COUNT = 256
     const val TOTAL_VOCAB_SIZE = 128_256
     const val MAX_PREFILL_TOKENS = 368
-    const val MAX_NEW_TOKENS = 144
+    const val MAX_NEW_TOKENS = 1000
+    const val MAX_AI_TUTOR_NEW_TOKENS = 1000
+    const val HISTORICAL_MAX_NEW_TOKENS = 144
     const val STRUCTURAL_OVERHEAD_TOKENS = 15
     const val MAX_RAW_CONTENT_TOKENS = 353 // 368 - 15
 

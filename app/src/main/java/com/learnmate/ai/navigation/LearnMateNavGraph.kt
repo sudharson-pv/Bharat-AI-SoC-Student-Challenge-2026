@@ -3,6 +3,7 @@ package com.learnmate.ai.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -50,9 +51,21 @@ fun LearnMateNavGraph(
                     false
                 }
             }
+            val isProfileLoading = profileState is LearningUiState.Idle || profileState is LearningUiState.Loading
+            var hasNavigated by remember { androidx.compose.runtime.mutableStateOf(false) }
+
             SplashScreen(
+                isProfileLoading = isProfileLoading,
                 onAnimationEnd = {
-                    val targetRoute = if (isModelReady) Screen.Home.route else Screen.ModelDownload.route
+                    if (hasNavigated) return@SplashScreen
+                    val currentProfile = (profileState as? LearningUiState.Success<LearnerProfile>)?.data
+                    val isOnboardingNeeded = currentProfile == null || !currentProfile.onboardingCompleted
+                    val targetRoute = when {
+                        !isModelReady -> Screen.ModelDownload.route
+                        isOnboardingNeeded -> Screen.Onboarding.route
+                        else -> Screen.Home.route
+                    }
+                    hasNavigated = true
                     navController.navigate(targetRoute) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
@@ -91,12 +104,16 @@ fun LearnMateNavGraph(
                 learningViewModel = learningViewModel,
                 onNavigateToDiagnostics = { navController.navigate(Screen.ModelDiagnostics.route) },
                 onModelReady = {
-                    navController.navigate(Screen.Home.route) {
+                    val currentProfile = (profileState as? LearningUiState.Success<LearnerProfile>)?.data
+                    val target = if (currentProfile == null || !currentProfile.onboardingCompleted) Screen.Onboarding.route else Screen.Home.route
+                    navController.navigate(target) {
                         popUpTo(Screen.ModelDownload.route) { inclusive = true }
                     }
                 },
                 onSkipOrContinue = {
-                    navController.navigate(Screen.Home.route) {
+                    val currentProfile = (profileState as? LearningUiState.Success<LearnerProfile>)?.data
+                    val target = if (currentProfile == null || !currentProfile.onboardingCompleted) Screen.Onboarding.route else Screen.Home.route
+                    navController.navigate(target) {
                         popUpTo(Screen.ModelDownload.route) { inclusive = true }
                     }
                 }
@@ -210,7 +227,11 @@ fun LearnMateNavGraph(
         composable(Screen.Roadmap.route) {
             RoadmapScreen(
                 learningViewModel = learningViewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = {
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Screen.Home.route)
+                    }
+                },
                 onNavigateToTutorWithTopic = { _ ->
                     navController.navigate(Screen.AiTutor.route)
                 },
@@ -218,6 +239,9 @@ fun LearnMateNavGraph(
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Roadmap.route) { inclusive = true }
                     }
+                },
+                onNavigateToAssessment = {
+                    navController.navigate(Screen.DiagnosticAssessment.route)
                 }
             )
         }

@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.learnmate.ai.R
+import com.learnmate.ai.data.taxonomy.TopicTaxonomy
 import com.learnmate.ai.domain.AssessmentQuestion
 import com.learnmate.ai.domain.LearnerProfile
 import com.learnmate.ai.viewmodel.LearningUiState
@@ -68,9 +69,23 @@ fun DiagnosticAssessmentScreen(
     var showConfirmSubmitDialog by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
 
-    LaunchedEffect(profile) {
-        if (profile != null && questions.isEmpty()) {
+    LaunchedEffect(profile?.userId, profile?.targetDomain, profile?.subdomain, profile?.goal) {
+        val targetDom = profile?.targetDomain.orEmpty()
+        val normDom = TopicTaxonomy.normalizeDomain(targetDom)
+        val subdomain = profile?.subdomain.orEmpty().trim()
+        val needsRegeneration = profile != null && (
+            questions.isEmpty() ||
+            (subdomain.isNotBlank() && !questions.all { it.subdomain.equals(subdomain, ignoreCase = true) }) ||
+            (subdomain.isBlank() && !questions.all {
+                it.domain.equals(targetDom, ignoreCase = true) ||
+                TopicTaxonomy.normalizeDomain(it.domain).equals(normDom, ignoreCase = true)
+            })
+        )
+        if (needsRegeneration) {
             questions = learningViewModel.getOrGenerateDiagnosticAssessment(profile)
+            userAnswers.clear()
+            currentIndex = 0
+            flowMode = AssessmentFlowMode.TAKING
         }
     }
 
@@ -129,6 +144,25 @@ fun DiagnosticAssessmentScreen(
                             Text(
                                 text = "Review (${userAnswers.size}/$totalCount)",
                                 fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    if (flowMode == AssessmentFlowMode.REVIEW && userAnswers.isNotEmpty() && !isSubmitting) {
+                        TextButton(onClick = {
+                            if (profile != null && !isSubmitting) {
+                                isSubmitting = true
+                                learningViewModel.submitDiagnosticAssessment(
+                                    profile = profile,
+                                    questions = questions,
+                                    answers = userAnswers.toMap()
+                                )
+                                flowMode = AssessmentFlowMode.RESULTS
+                            }
+                        }) {
+                            Text(
+                                text = "Submit",
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -466,7 +500,17 @@ fun DiagnosticAssessmentScreen(
 
                         // Submit Assessment Button
                         Button(
-                            onClick = { showConfirmSubmitDialog = true },
+                            onClick = {
+                                if (profile != null && !isSubmitting) {
+                                    isSubmitting = true
+                                    learningViewModel.submitDiagnosticAssessment(
+                                        profile = profile,
+                                        questions = questions,
+                                        answers = userAnswers.toMap()
+                                    )
+                                    flowMode = AssessmentFlowMode.RESULTS
+                                }
+                            },
                             enabled = userAnswers.isNotEmpty() && !isSubmitting,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -485,7 +529,7 @@ fun DiagnosticAssessmentScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(72.dp))
                     }
                 }
 

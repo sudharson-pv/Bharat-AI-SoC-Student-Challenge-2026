@@ -2,9 +2,12 @@ package com.learnmate.ai.ai
 
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -34,6 +38,26 @@ class ExecuTorchLlamaEngine(
 ) {
     companion object {
         private const val TAG = "ExecuTorchEngine"
+    }
+
+    enum class OperationState {
+        QUEUED,
+        REGISTERED,
+        JNI_STARTED,
+        CANCEL_REQUESTED,
+        NATIVE_RETURNED,
+        COMPLETED,
+        CANCEL_UNSUPPORTED
+    }
+
+    enum class CancellationResult {
+        CANCEL_ACCEPTED_ACTIVE,
+        CANCELLED_BEFORE_NATIVE_START,
+        OPERATION_QUEUED_NOT_ACTIVE,
+        OPERATION_ALREADY_COMPLETED,
+        OPERATION_ID_MISMATCH,
+        NATIVE_CANCEL_UNSUPPORTED,
+        CANCEL_ALREADY_REQUESTED
     }
 
     interface NativeLlmBridge {
@@ -59,6 +83,31 @@ class ExecuTorchLlamaEngine(
     )
 
     private val engineMutex = Mutex()
+    private val cancellationLock = Object()
+    private val nativeControlDispatcher: CoroutineDispatcher =
+        Executors.newSingleThreadExecutor { r ->
+            Thread(r, "ExecuTorch-Control-Thread").apply { isDaemon = true }
+        }.asCoroutineDispatcher()
+
+    var activeOperationId: String? = null
+        private set
+    var activeOperationState: OperationState = OperationState.COMPLETED
+        private set
+    private var activeGeneration: Long = 0L
+    private var isStopDispatchInProgress: Boolean = false
+    private var stopDispatchTargetGeneration: Long = -1L
+    private var pendingStopBarrierDeferred: CompletableDeferred<Unit>? = null
+
+    private val queuedOperations = mutableSetOf<String>()
+    private val cancelledQueuedOperations = mutableSetOf<String>()
+    private val completedOperations = object : LinkedHashMap<String, Long>(100, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > 100
+    }
+
+    @Volatile var onNativeInvocationBoundary: ((String) -> Unit)? = null
+    @Volatile var onStopDispatched: ((String) -> Unit)? = null
+    @Volatile var onStopReturned: ((String, Boolean) -> Unit)? = null
+
     private var loadedModule: Any? = null
     var loadedModelPath: String? = null
         private set
@@ -307,10 +356,12 @@ class ExecuTorchLlamaEngine(
     }
 
     suspend fun generateWithBudget(
+        operationId: String,
         plan: ExactPromptBudgeter.BudgetPlan,
         onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
     ): Result<GenerationMetrics> {
         return executeGeneration(
+            operationId = operationId,
             formattedPrompt = plan.formattedPrompt,
             allowedOutputTokens = plan.allowedOutputTokens,
             promptTokensEstimate = plan.exactPrefillTokens,
@@ -318,13 +369,26 @@ class ExecuTorchLlamaEngine(
         )
     }
 
+    suspend fun generateWithBudget(
+        plan: ExactPromptBudgeter.BudgetPlan,
+        onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
+    ): Result<GenerationMetrics> = generateWithBudget(
+        operationId = "op_${UUID.randomUUID()}",
+        plan = plan,
+        onTokenDelta = onTokenDelta
+    )
+
     suspend fun generate(
         prompt: String,
-        maxNewTokens: Int = 256,
+        maxNewTokens: Int = ActiveModelManifest.MAX_NEW_TOKENS,
         onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
     ): Result<GenerationMetrics> {
-        val budget = PromptBudgeter.planPromptBudget(prompt, maxNewTokens)
+        val budget = PromptBudgeter.planPromptBudget(
+            prompt,
+            maxNewTokens.coerceAtMost(ActiveModelManifest.MAX_NEW_TOKENS)
+        )
         return executeGeneration(
+            operationId = "op_${UUID.randomUUID()}",
             formattedPrompt = budget.formattedPrompt,
             allowedOutputTokens = budget.allowedOutputTokens,
             promptTokensEstimate = budget.estimatedPromptTokens,
@@ -349,23 +413,120 @@ class ExecuTorchLlamaEngine(
     }
 
     private suspend fun executeGeneration(
+        operationId: String,
         formattedPrompt: String,
         allowedOutputTokens: Int,
         promptTokensEstimate: Int,
         onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
     ): Result<GenerationMetrics> {
-        return engineMutex.withLock {
-            withContext(inferenceDispatcher) {
-                val module = loadedModule ?: return@withContext Result.failure(
-                    IllegalStateException("Model not loaded. Call loadModel() first.")
-                )
-                executeGenerationInternal(
-                    module = module,
-                    formattedPrompt = formattedPrompt,
-                    allowedOutputTokens = allowedOutputTokens,
-                    promptTokensEstimate = promptTokensEstimate,
-                    onTokenDelta = onTokenDelta
-                )
+        // Enforce operation ID uniqueness across active, queued, and recently completed cache
+        synchronized(cancellationLock) {
+            if (operationId == activeOperationId || queuedOperations.contains(operationId) || completedOperations.containsKey(operationId)) {
+                return Result.failure(IllegalArgumentException("Duplicate operation ID rejected: $operationId"))
+            }
+            queuedOperations.add(operationId)
+        }
+
+        return try {
+            engineMutex.withLock {
+                var currentOpGeneration: Long
+                var shouldAbortPreJni = false
+
+                synchronized(cancellationLock) {
+                    queuedOperations.remove(operationId)
+                    if (cancelledQueuedOperations.remove(operationId)) {
+                        completedOperations[operationId] = SystemClock.elapsedRealtime()
+                        return@withLock Result.failure(
+                            CancellationException("Operation $operationId was cancelled while queued awaiting mutex")
+                        )
+                    }
+                    activeGeneration++
+                    currentOpGeneration = activeGeneration
+                    activeOperationId = operationId
+                    activeOperationState = OperationState.REGISTERED
+                }
+
+                try {
+                    val module = withContext(inferenceDispatcher) { loadedModule }
+                    if (module == null) {
+                        return@withLock Result.failure(
+                            IllegalStateException("Model not loaded. Call loadModel() first.")
+                        )
+                    }
+
+                    // Native invocation boundary check
+                    onNativeInvocationBoundary?.invoke(operationId)
+
+                    synchronized(cancellationLock) {
+                        if (activeOperationState == OperationState.CANCEL_REQUESTED) {
+                            shouldAbortPreJni = true
+                        } else {
+                            activeOperationState = OperationState.JNI_STARTED
+                        }
+                    }
+
+                    if (shouldAbortPreJni) {
+                        return@withLock Result.failure(
+                            CancellationException("Operation $operationId aborted prior to native JNI start (CANCELLED_BEFORE_NATIVE_START)")
+                        )
+                    }
+
+                    withContext(inferenceDispatcher) {
+                        var genRes = executeGenerationInternal(
+                            module = module,
+                            formattedPrompt = formattedPrompt,
+                            allowedOutputTokens = allowedOutputTokens,
+                            promptTokensEstimate = promptTokensEstimate,
+                            onTokenDelta = onTokenDelta
+                        )
+                        if (genRes.isFailure) {
+                            val err = genRes.exceptionOrNull()?.message ?: ""
+                            if (err.contains("0x12") || err.contains("Invalid argument") || err.contains("start_pos") || err.contains("cache")) {
+                                Log.w(TAG, "Native KV cache limit reached ($err). Resetting module and retrying generation...")
+                                try {
+                                    runtimeBridge.stop(module)
+                                } catch (_: Exception) {}
+                                val modelPath = loadedModelPath ?: assetManager.activeModelFile.absolutePath
+                                val tokPath = assetManager.activeTokenizerFile.absolutePath
+                                try {
+                                    val freshModule = runtimeBridge.createAndLoadModule(modelPath, tokPath, 0.7f)
+                                    loadedModule = freshModule
+                                    genRes = executeGenerationInternal(
+                                        module = freshModule,
+                                        formattedPrompt = formattedPrompt,
+                                        allowedOutputTokens = allowedOutputTokens,
+                                        promptTokensEstimate = promptTokensEstimate,
+                                        onTokenDelta = onTokenDelta
+                                    )
+                                } catch (reloadErr: Throwable) {
+                                    Log.e(TAG, "Module reload recovery failed: ${reloadErr.message}", reloadErr)
+                                }
+                            }
+                        }
+                        genRes
+                    }
+                } finally {
+                    val barrierToAwait = synchronized(cancellationLock) {
+                        activeOperationState = OperationState.NATIVE_RETURNED
+                        if (isStopDispatchInProgress && stopDispatchTargetGeneration == currentOpGeneration) {
+                            pendingStopBarrierDeferred
+                        } else null
+                    }
+
+                    // Suspend cooperatively until any in-flight native stop dispatch targeted at this generation completes
+                    barrierToAwait?.await()
+
+                    synchronized(cancellationLock) {
+                        activeOperationState = OperationState.COMPLETED
+                        activeOperationId = null
+                        completedOperations[operationId] = SystemClock.elapsedRealtime()
+                    }
+                }
+            }
+        } finally {
+            synchronized(cancellationLock) {
+                queuedOperations.remove(operationId)
+                cancelledQueuedOperations.remove(operationId)
             }
         }
     }
@@ -377,6 +538,9 @@ class ExecuTorchLlamaEngine(
         promptTokensEstimate: Int,
         onTokenDelta: (fullAccumulatedText: String, deltaToken: String) -> Unit
     ): Result<GenerationMetrics> {
+        // Defense in depth: callers of generateWithBudget can construct a plan
+        // directly, so enforce the authoritative cap at the native boundary too.
+        val cappedOutputTokens = allowedOutputTokens.coerceIn(1, ActiveModelManifest.MAX_NEW_TOKENS)
         _runtimeState.value = ModelRuntimeState.GENERATING
         _lastError.value = null
         activeCancellation.set(false)
@@ -396,9 +560,13 @@ class ExecuTorchLlamaEngine(
             val status = runtimeBridge.generate(
                 moduleInstance = module,
                 prompt = formattedPrompt,
-                maxNewTokens = allowedOutputTokens,
+                maxNewTokens = cappedOutputTokens,
                 onToken = { rawToken ->
-                    if (activeCancellation.get()) return@generate
+                    if (activeCancellation.get() || tokenCallbacks >= cappedOutputTokens) {
+                        activeCancellation.set(true)
+                        runtimeBridge.stop(module)
+                        return@generate
+                    }
                     if (rawToken.contains("<|eot_id|>") || rawToken.contains("<|end_of_text|>")) {
                         val cleaned = rawToken
                             .replace("<|eot_id|>", "")
@@ -408,6 +576,7 @@ class ExecuTorchLlamaEngine(
                             onTokenDelta(builder.toString(), cleaned)
                         }
                         activeCancellation.set(true)
+                        runtimeBridge.stop(module)
                         return@generate
                     }
                     if (rawToken.isNotEmpty()) {
@@ -418,7 +587,7 @@ class ExecuTorchLlamaEngine(
                         tokenCallbacks += 1
                         builder.append(rawToken)
                         onTokenDelta(builder.toString(), rawToken)
-                        if (tokenCallbacks >= allowedOutputTokens) {
+                        if (tokenCallbacks >= cappedOutputTokens) {
                             activeCancellation.set(true)
                             runtimeBridge.stop(module)
                         }
@@ -462,7 +631,7 @@ class ExecuTorchLlamaEngine(
                     totalElapsedMs = totalMs,
                     tokensPerSecond = lastDecodeTokensPerSec ?: computedTps,
                     promptTokensEstimate = promptTokensEstimate,
-                    allowedOutputTokens = allowedOutputTokens
+                    allowedOutputTokens = cappedOutputTokens
                 )
             )
         } catch (t: Throwable) {
@@ -475,14 +644,94 @@ class ExecuTorchLlamaEngine(
         }
     }
 
+    fun stop(targetOperationId: String): CancellationResult {
+        var moduleToStop: Any? = null
+        var barrierDeferred: CompletableDeferred<Unit>? = null
+
+        synchronized(cancellationLock) {
+            when {
+                targetOperationId == activeOperationId -> {
+                    when (activeOperationState) {
+                        OperationState.REGISTERED -> {
+                            activeOperationState = OperationState.CANCEL_REQUESTED
+                            return CancellationResult.CANCELLED_BEFORE_NATIVE_START
+                        }
+                        OperationState.JNI_STARTED -> {
+                            activeOperationState = OperationState.CANCEL_REQUESTED
+                            isStopDispatchInProgress = true
+                            stopDispatchTargetGeneration = activeGeneration
+                            barrierDeferred = CompletableDeferred()
+                            pendingStopBarrierDeferred = barrierDeferred
+                            moduleToStop = loadedModule
+                        }
+                        OperationState.CANCEL_REQUESTED -> {
+                            return CancellationResult.CANCEL_ALREADY_REQUESTED
+                        }
+                        OperationState.CANCEL_UNSUPPORTED -> {
+                            return CancellationResult.NATIVE_CANCEL_UNSUPPORTED
+                        }
+                        else -> {
+                            return CancellationResult.OPERATION_ALREADY_COMPLETED
+                        }
+                    }
+                }
+                queuedOperations.contains(targetOperationId) -> {
+                    cancelledQueuedOperations.add(targetOperationId)
+                    return CancellationResult.OPERATION_QUEUED_NOT_ACTIVE
+                }
+                completedOperations.containsKey(targetOperationId) -> {
+                    return CancellationResult.OPERATION_ALREADY_COMPLETED
+                }
+                else -> {
+                    return CancellationResult.OPERATION_ID_MISMATCH
+                }
+            }
+        }
+
+        if (moduleToStop != null && barrierDeferred != null) {
+            onStopDispatched?.invoke(targetOperationId)
+            activeCancellation.set(true)
+
+            // Dispatch stop asynchronously to dedicated single-thread executor without waiting for JNI
+            nativeControlDispatcher.asExecutor().execute {
+                var success = false
+                try {
+                    runtimeBridge.stop(moduleToStop!!)
+                    success = true
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Native stop dispatch threw exception for $targetOperationId", t)
+                    synchronized(cancellationLock) {
+                        if (activeOperationId == targetOperationId) {
+                            activeOperationState = OperationState.CANCEL_UNSUPPORTED
+                        }
+                    }
+                } finally {
+                    onStopReturned?.invoke(targetOperationId, success)
+                    synchronized(cancellationLock) {
+                        isStopDispatchInProgress = false
+                        barrierDeferred.complete(Unit)
+                    }
+                }
+            }
+            return CancellationResult.CANCEL_ACCEPTED_ACTIVE
+        }
+
+        return CancellationResult.OPERATION_ALREADY_COMPLETED
+    }
+
     fun stop() {
         activeCancellation.set(true)
-        val module = loadedModule
-        if (module != null) {
-            try {
-                runtimeBridge.stop(module)
-            } catch (t: Throwable) {
-                Log.w(TAG, "Error stopping module", t)
+        val currentId = synchronized(cancellationLock) { activeOperationId }
+        if (currentId != null) {
+            stop(currentId)
+        } else {
+            val module = loadedModule
+            if (module != null) {
+                nativeControlDispatcher.asExecutor().execute {
+                    try {
+                        runtimeBridge.stop(module)
+                    } catch (_: Throwable) {}
+                }
             }
         }
     }
@@ -588,8 +837,15 @@ class ReflectionExecuTorchLlmBridge : ExecuTorchLlamaEngine.NativeLlmBridge {
                         null
                     }
                     "onStats" -> {
-                        val tps = (args?.firstOrNull() as? Number)?.toFloat() ?: 0f
-                        onStats(tps)
+                        val arg = args?.firstOrNull()
+                        val tps = when (arg) {
+                            is Number -> arg.toFloat()
+                            is String -> {
+                                Regex("""([0-9]+(?:\.[0-9]+)?)""").find(arg)?.value?.toFloatOrNull() ?: 0f
+                            }
+                            else -> 0f
+                        }
+                        if (tps > 0f) onStats(tps)
                         null
                     }
                     "hashCode" -> System.identityHashCode(this)
@@ -603,9 +859,14 @@ class ReflectionExecuTorchLlmBridge : ExecuTorchLlamaEngine.NativeLlmBridge {
         val cls = moduleInstance.javaClass
         // In ExecuTorch C++, seq_len represents the TOTAL sequence window (prompt + max_new_tokens),
         // NOT max_new_tokens alone. resolve_max_new_tokens calculates (seq_len - num_prompt_tokens).
-        // Therefore, totalSeqWindow must encompass prompt + output, capped at MAX_SEQ_LENGTH (512).
+        // Enforce the 1000-token cap: allowedOutput = min(requestedOutput, 1000, actualModelSequenceLimit - actualPrefillTokens - requiredReservedTokens)
         val estimatedPrompt = PromptBudgeter.estimateTokens(prompt)
-        val totalSeqWindow = (estimatedPrompt + maxNewTokens).coerceIn(32, ActiveModelManifest.MAX_SEQ_LENGTH)
+        val cappedNewTokens = minOf(
+            maxNewTokens,
+            ActiveModelManifest.MAX_NEW_TOKENS,
+            (ActiveModelManifest.MAX_SEQ_LENGTH - estimatedPrompt - 32).coerceAtLeast(1)
+        )
+        val totalSeqWindow = (estimatedPrompt + cappedNewTokens).coerceIn(32, ActiveModelManifest.MAX_CONTEXT_LENGTH)
         return try {
             val m4 = cls.getMethod(
                 "generate",

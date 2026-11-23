@@ -31,9 +31,35 @@ import java.util.UUID
  * - Transparent provenance flagging (isAiGenerated).
  */
 class LearnMateAiCoreEngine(
-    private val llamaEngine: ExecuTorchLlamaEngine,
-    private val assetManager: ModelAssetManager
+    val llamaEngine: ExecuTorchLlamaEngine,
+    val assetManager: ModelAssetManager
 ) {
+    val aiOrchestrator: OnDeviceAiOrchestrator = OnDeviceAiOrchestrator(llamaEngine)
+
+    val isModelReady: Boolean
+        get() = llamaEngine.runtimeState.value == ModelRuntimeState.READY ||
+                llamaEngine.runtimeState.value == ModelRuntimeState.MODEL_LOADED
+
+    suspend fun generateStreamingResponse(
+        prompt: String,
+        maxNewTokens: Int = ActiveModelManifest.MAX_NEW_TOKENS,
+        onToken: (String) -> Unit = {}
+    ): Result<String> {
+        var finalFull = ""
+        val result = llamaEngine.generate(
+            prompt = prompt,
+            maxNewTokens = maxNewTokens,
+            onTokenDelta = { full, delta ->
+                finalFull = full
+                onToken(delta)
+            }
+        )
+        return if (result.isSuccess) {
+            Result.success(result.getOrNull()?.generatedText ?: finalFull)
+        } else {
+            Result.failure(result.exceptionOrNull() ?: Exception("Generation failed"))
+        }
+    }
     companion object {
         private const val TAG = "LearnMateAiCoreEngine"
         private val gson = Gson()
@@ -74,7 +100,7 @@ class LearnMateAiCoreEngine(
 
         // 1. If active model is ready in memory, attempt genuine on-device Llama 3.2 generation
         if (llamaEngine.runtimeState.value == ModelRuntimeState.READY || llamaEngine.runtimeState.value == ModelRuntimeState.MODEL_LOADED) {
-            val aiResult = tryGenerateAiQuestions(profile, maxAttempts = 2)
+            val aiResult = tryGenerateAiQuestions(profile, maxAttempts = 1)
             if (aiResult != null && aiResult.size == 10) {
                 Log.i(TAG, "Successfully generated 10 verified diagnostic questions via on-device Llama model.")
                 return@withContext aiResult
@@ -89,10 +115,12 @@ class LearnMateAiCoreEngine(
     }
 
     private suspend fun tryGenerateAiQuestions(profile: LearnerProfile, maxAttempts: Int): List<AssessmentQuestion>? {
-        val domain = profile.targetDomain.ifBlank { "General Engineering" }
-        val branch = profile.subdomain.ifBlank { profile.targetDomain }
+        val resolved = com.learnmate.ai.domain.focus.FocusAreaIntelligence.resolveFocusArea(profile.subdomain, profile.targetDomain)
+        val domain = profile.targetDomain.ifBlank { resolved.domain }
+        val branch = profile.subdomain.ifBlank { resolved.technicalSpecialization }
+        val focus = resolved.displayName
         val level = profile.educationLevel.name
-        val goal = profile.goal.ifBlank { "Conceptual understanding" }
+        val goal = profile.goal.ifBlank { resolved.targetOutcomeSummary }
         val language = profile.preferredLanguageCode.ifBlank { "en" }
 
         val prompt = """
@@ -114,13 +142,14 @@ class LearnMateAiCoreEngine(
             Rules:
             1. Exactly 10 questions.
             2. Each question has exactly 4 options with 1 correctIndex (0 to 3).
-            3. Must be strictly relevant to Domain '$domain', Specialization '$branch', Level '$level', Goal '$goal'.
+            3. Must be strictly relevant to Focus Area '$focus', Specialization '$branch', Domain '$domain', Level '$level', Goal '$goal'.
             4. Mixture: 2 conceptual, 2 fundamental, 3 application, 2 problem-solving, 1 goal-specific.
             5. Output raw JSON only. Do not output markdown backticks, preamble, or commentary.
             <|eot_id|><|start_header_id|>user<|end_header_id|>
             Generate 10 diagnostic questions for:
-            Domain: $domain
+            Focus Area: $focus
             Branch: $branch
+            Domain: $domain
             Level: $level
             Goal: $goal
             Language: $language
@@ -132,7 +161,7 @@ class LearnMateAiCoreEngine(
                 var generatedText = ""
                 val result = llamaEngine.generate(
                     prompt = prompt,
-                    maxNewTokens = 768,
+                    maxNewTokens = 450,
                     onTokenDelta = { full, _ -> generatedText = full }
                 )
 
@@ -256,10 +285,32 @@ class LearnMateAiCoreEngine(
      * Ensures learners in MBA, Science, VLSI, CS, Medicine, etc. receive domain-exact questions.
      */
     fun generateTailoredDomainQuestions(profile: LearnerProfile): List<AssessmentQuestion> {
+        val resolved = com.learnmate.ai.domain.focus.FocusAreaIntelligence.resolveFocusArea(profile.subdomain, profile.targetDomain)
+        val ctx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile)
+
+        if (resolved.standardQuestions.isNotEmpty()) {
+            val prov = com.learnmate.ai.domain.provenance.AiOperationProvenance(
+                operationId = "op_focus_${UUID.randomUUID()}",
+                learnerId = profile.userId,
+                trackId = ctx.activeTrackId,
+                profileFingerprint = ctx.profileFingerprint,
+                operationName = "DIAGNOSTIC_QUESTION_GENERATION",
+                isRealInferenceExecuted = false,
+                isDeterministicFallbackUsed = true,
+                fallbackReason = "Grounded in specific focus area: ${resolved.displayName}",
+                validationStatus = "FOCUS_AREA_VALIDATED"
+            )
+            return resolved.standardQuestions.take(10).map { q ->
+                q.copy(
+                    isAiGenerated = false,
+                    provenance = prov
+                )
+            }
+        }
+
         val domain = profile.targetDomain.lowercase()
         val branch = profile.subdomain.lowercase()
         val goal = profile.goal.lowercase()
-        val ctx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile)
 
         val prov = com.learnmate.ai.domain.provenance.AiOperationProvenance(
             operationId = "op_fallback_${UUID.randomUUID()}",
@@ -274,27 +325,45 @@ class LearnMateAiCoreEngine(
         )
 
         val questions = when {
-            domain.contains("finance") || domain.contains("business") || domain.contains("mba") || branch.contains("finance") -> {
-                generateFinanceQuestions(profile)
-            }
-            domain.contains("electronic") || domain.contains("vlsi") || branch.contains("vlsi") || goal.contains("vlsi") -> {
+            // 1. Electronics and VLSI
+            domain.contains("electronic") || domain.contains("vlsi") -> {
                 generateVlsiQuestions(profile)
             }
-            domain.contains("science") || domain.contains("school") || domain.contains("chemistry") || domain.contains("physics") -> {
-                generateScienceQuestions(profile)
+            // 2. Biotechnology and Molecular Biology
+            domain.contains("biotech") || domain.contains("molecular") || domain.contains("genetic") -> {
+                generateBiotechnologyQuestions(profile)
             }
-            domain.contains("computer") || domain.contains("software") || domain.contains("ai") || branch.contains("algorithm") -> {
-                generateComputerScienceQuestions(profile)
+            // 3. Food Technology
+            domain.contains("food") -> {
+                generateFoodTechnologyQuestions(profile)
             }
-            domain.contains("mechanical") || branch.contains("mechanical") -> {
+            // 4. Finance and MBA Management
+            domain.contains("finance") || domain.contains("business") || domain.contains("mba") -> {
+                generateFinanceQuestions(profile)
+            }
+            // 5. Mechanical Engineering
+            domain.contains("mechanical") -> {
                 generateMechanicalQuestions(profile)
             }
-            domain.contains("civil") || branch.contains("civil") -> {
+            // 6. Civil and Structural Engineering
+            domain.contains("civil") -> {
                 generateCivilQuestions(profile)
             }
-            domain.contains("medicine") || domain.contains("health") || branch.contains("biomed") -> {
+            // 7. Medicine and Healthcare
+            domain.contains("medicine") || domain.contains("health") -> {
                 generateMedicalQuestions(profile)
             }
+            // 8. Computer Science, AI, and Software Engineering (strictly prevents hijacking other domains)
+            domain.contains("computer") || domain.contains("software") || domain.contains("ai") ||
+                ((branch.contains("algorithm") || branch.contains("software")) && !domain.contains("science") && !domain.contains("electronic") && !domain.contains("vlsi") && !domain.contains("biotech") && !domain.contains("food")) -> {
+                generateComputerScienceQuestions(profile)
+            }
+            // 9. Secondary School Science, Physics, Chemistry (Strictly excludes Computer and Data disciplines)
+            (domain.contains("science") || domain.contains("school") || domain.contains("chemistry") || domain.contains("physics") || domain.contains("secondary")) &&
+                !domain.contains("computer") && !domain.contains("data") -> {
+                generateScienceQuestions(profile)
+            }
+            // 10. Universal / Custom Disciplines (Grounded tailored curriculum for custom user domains)
             else -> {
                 generateUniversalDisciplineQuestions(profile)
             }
@@ -305,6 +374,200 @@ class LearnMateAiCoreEngine(
                 provenance = prov
             )
         }
+    }
+
+    private fun generateBiotechnologyQuestions(profile: LearnerProfile): List<AssessmentQuestion> {
+        val d = profile.targetDomain
+        val sub = profile.subdomain.ifBlank { "Molecular Biology" }
+        return listOf(
+            makeQ(
+                id = "diag_bio_1", domain = d, subdomain = sub,
+                topic = "Central Dogma & DNA Structure",
+                questionText = "In the standard Watson-Crick B-DNA double helix, how many hydrogen bonds stabilize a guanine-cytosine (G-C) base pair compared to an adenine-thymine (A-T) base pair?",
+                options = listOf("G-C has 3 hydrogen bonds, while A-T has 2", "G-C has 2 hydrogen bonds, while A-T has 3", "Both base pairs form exactly 2 hydrogen bonds", "G-C forms 4 covalent bonds, while A-T forms ionic bonds"),
+                correctIndex = 0,
+                explanation = "Guanine and cytosine form three specific hydrogen bonds, giving G-C rich DNA higher thermal stability (melting temperature Tm) than A-T rich DNA (2 hydrogen bonds).",
+                difficulty = "EASY", learningObjective = "Understand base-pairing stoichiometry and DNA thermodynamic stability."
+            ),
+            makeQ(
+                id = "diag_bio_2", domain = d, subdomain = sub,
+                topic = "Polymerase Chain Reaction (PCR)",
+                questionText = "In standard three-step PCR thermal cycling, what is the primary biochemical purpose of the 72°C extension step?",
+                options = listOf("Optimal enzymatic synthesis of DNA by thermostable Taq polymerase", "Complete thermal denaturation of double-stranded DNA template", "Annealing of forward and reverse oligonucleotide primers to template", "Inactivation of exonucleases and proteases"),
+                correctIndex = 0,
+                explanation = "Taq polymerase exhibits peak catalytic activity around 72°C, extending primers along the single-stranded template in the 5' to 3' direction.",
+                difficulty = "EASY", learningObjective = "Recall thermal cycling phases and enzymatic kinetics in PCR."
+            ),
+            makeQ(
+                id = "diag_bio_3", domain = d, subdomain = sub,
+                topic = "Recombinant DNA & Restriction Enzymes",
+                questionText = "What type of nucleotide recognition sequence is characteristically cleaved by Type II restriction endonucleases (such as EcoRI)?",
+                options = listOf("Palindromic sequences with two-fold rotational symmetry", "Homopolymeric poly-A repeat tracts", "Telomeric hexanucleotide repeat sequences", "Unpaired single-stranded hairpin loops"),
+                correctIndex = 0,
+                explanation = "Type II restriction endonucleases typically recognize short palindromic sequences (e.g. 5'-GAATTC-3') and cleave both strands symmetrically to generate sticky or blunt ends.",
+                difficulty = "MEDIUM", learningObjective = "Analyze restriction endonuclease cleavage mechanisms."
+            ),
+            makeQ(
+                id = "diag_bio_4", domain = d, subdomain = sub,
+                topic = "Agarose Gel Electrophoresis",
+                questionText = "During agarose gel electrophoresis at neutral pH, in which direction do DNA molecules migrate, and what governs their migration rate?",
+                options = listOf("Towards the positive anode (+); smaller fragments migrate faster through pores", "Towards the negative cathode (-); larger fragments migrate faster", "Towards the positive anode (+); circular plasmids always migrate slower than linear fragments", "Towards the negative cathode (-); migration is independent of molecular size"),
+                correctIndex = 0,
+                explanation = "Due to the negatively charged phosphate backbone, DNA migrates toward the positive anode; the agarose gel matrix acts as a molecular sieve where smaller fragments experience less friction and travel farther.",
+                difficulty = "MEDIUM", learningObjective = "Apply charge and molecular sieving principles to nucleic acid separation."
+            ),
+            makeQ(
+                id = "diag_bio_5", domain = d, subdomain = sub,
+                topic = "CRISPR-Cas9 Genome Editing",
+                questionText = "In the CRISPR-Cas9 genome editing system, what adjacent sequence is required on the target DNA immediately following the protospacer for Cas9 binding and cleavage?",
+                options = listOf("Protospacer Adjacent Motif (PAM, typically 5'-NGG-3')", "TATA box promoter element", "Polyadenylation consensus sequence", "Shine-Dalgarno ribosomal binding site"),
+                correctIndex = 0,
+                explanation = "SpCas9 strictly requires a Protospacer Adjacent Motif (PAM; 5'-NGG-3') downstream of the 20-nucleotide guide RNA target sequence to initiate DNA unwinding and R-loop formation.",
+                difficulty = "MEDIUM", learningObjective = "Explain Cas9 target site recognition and PAM sequence constraints."
+            ),
+            makeQ(
+                id = "diag_bio_6", domain = d, subdomain = sub,
+                topic = "Plasmids & Cloning Vectors",
+                questionText = "What essential genetic feature allows a recombinant bacterial expression plasmid to replicate autonomously within the host bacterium?",
+                options = listOf("Origin of Replication (ori)", "Multiple Cloning Site (MCS)", "Antibiotic resistance selectable marker", "Transcription termination signal"),
+                correctIndex = 0,
+                explanation = "The origin of replication (ori) is the specific DNA sequence that recruits bacterial replication machinery to initiate autonomous plasmid duplication.",
+                difficulty = "MEDIUM", learningObjective = "Identify fundamental structural elements of molecular cloning vectors."
+            ),
+            makeQ(
+                id = "diag_bio_7", domain = d, subdomain = sub,
+                topic = "Western Blotting & Protein Detection",
+                questionText = "In SDS-PAGE prior to Western blotting, what is the role of sodium dodecyl sulfate (SDS) in sample preparation?",
+                options = listOf("Denatures secondary/tertiary protein structure and imparts a uniform negative charge-to-mass ratio", "Cleaves peptide bonds at specific hydrophobic residues", "Covalently links primary antibodies to antigenic epitopes", "Stabilizes quaternary protein complexes in their native conformations"),
+                correctIndex = 0,
+                explanation = "SDS acts as an anionic detergent that linearizes proteins and coats them with a negative charge proportional to their length (~1.4g SDS per 1g protein), enabling size-based separation.",
+                difficulty = "HARD", learningObjective = "Explain protein denaturing electrophoresis and charge normalization."
+            ),
+            makeQ(
+                id = "diag_bio_8", domain = d, subdomain = sub,
+                topic = "Bioreactors & Fermentation Kinetics",
+                questionText = "In industrial aerobic bioprocessing, which parameter quantifies the rate of oxygen transfer from gas sparge bubbles into the liquid fermentation broth?",
+                options = listOf("Volumetric Oxygen Transfer Coefficient (kLa)", "Specific growth rate (mu)", "Yield coefficient (Yx/s)", "Critical micelle concentration (CMC)"),
+                correctIndex = 0,
+                explanation = "The volumetric oxygen transfer coefficient (kLa, units of hr^-1) governs the oxygen transfer rate (OTR = kLa * (C* - CL)) in aerobic bioreactors.",
+                difficulty = "HARD", learningObjective = "Analyze gas-liquid mass transfer in bioprocess engineering."
+            ),
+            makeQ(
+                id = "diag_bio_9", domain = d, subdomain = sub,
+                topic = "Enzyme Kinetics & Michaelis-Menten",
+                questionText = "In competitive enzyme inhibition, how do the Michaelis constant (Km) and maximum reaction velocity (Vmax) change in the presence of the inhibitor?",
+                options = listOf("Apparent Km increases, while Vmax remains unchanged", "Apparent Km decreases, while Vmax decreases", "Both Km and Vmax decrease proportionally", "Km remains unchanged, while Vmax decreases"),
+                correctIndex = 0,
+                explanation = "A competitive inhibitor binds reversibly to the active site, requiring higher substrate concentration to reach half-maximal velocity (Km increases), but high substrate can displace the inhibitor so Vmax is unaffected.",
+                difficulty = "HARD", learningObjective = "Distinguish competitive from non-competitive and uncompetitive enzyme inhibition."
+            ),
+            makeQ(
+                id = "diag_bio_10", domain = d, subdomain = sub,
+                topic = "Downstream Processing & Chromatography",
+                questionText = "Which chromatography technique separates biomolecules strictly on the basis of their hydrodynamic volume and Stokes radius without binding interactions?",
+                options = listOf("Size Exclusion Chromatography (Gel Filtration)", "Immobilized Metal Affinity Chromatography (IMAC)", "Cation Exchange Chromatography", "Hydrophobic Interaction Chromatography (HIC)"),
+                correctIndex = 0,
+                explanation = "Size Exclusion Chromatography (SEC) uses porous beads; larger molecules cannot enter pores and elute in the void volume first, while smaller molecules enter the pores and elute later.",
+                difficulty = "HARD", learningObjective = "Differentiate preparative chromatographic separation modalities in biotechnology."
+            )
+        )
+    }
+
+    private fun generateFoodTechnologyQuestions(profile: LearnerProfile): List<AssessmentQuestion> {
+        val d = profile.targetDomain
+        val sub = profile.subdomain.ifBlank { "Food Preservation" }
+        return listOf(
+            makeQ(
+                id = "diag_food_1", domain = d, subdomain = sub,
+                topic = "Thermal Processing & Pasteurization",
+                questionText = "Which endogenous milk enzyme is tested to verify the adequacy of High-Temperature Short-Time (HTST) pasteurization (71.7°C for 15 seconds)?",
+                options = listOf("Alkaline Phosphatase", "Lactase", "Lipase", "Catalase"),
+                correctIndex = 0,
+                explanation = "Alkaline phosphatase has thermal resistance slightly greater than Mycobacterium tuberculosis and Coxiella burnetii. Inactivation of alkaline phosphatase confirms effective pasteurization.",
+                difficulty = "EASY", learningObjective = "Identify enzyme indicator tests for thermal pasteurization efficiency."
+            ),
+            makeQ(
+                id = "diag_food_2", domain = d, subdomain = sub,
+                topic = "Thermal Inactivation Kinetics: D & z Values",
+                questionText = "In food thermal sterilization, what does the Decimal Reduction Time (D-value) represent?",
+                options = listOf("Time in minutes at a given temperature required to destroy 90% (1 log reduction) of a microbial population", "Temperature increase required to reduce the thermal death time by 90%", "Total time required to achieve commercial sterility at 121.1°C", "Number of spores surviving a 12D botulinum cook"),
+                correctIndex = 0,
+                explanation = "The D-value is the exposure time at a constant temperature required to reduce the surviving microbial population by 90% (1 log cycle).",
+                difficulty = "EASY", learningObjective = "Calculate microbial destruction rates using decimal reduction kinetics."
+            ),
+            makeQ(
+                id = "diag_food_3", domain = d, subdomain = sub,
+                topic = "Water Activity (aw) in Food Preservation",
+                questionText = "What is the recognized minimum water activity (aw) limit below which Clostridium botulinum cannot produce neurotoxin?",
+                options = listOf("0.93", "0.85", "0.75", "0.60"),
+                correctIndex = 0,
+                explanation = "Clostridium botulinum growth and toxin production are completely inhibited at water activity below 0.93 (equivalent to ~10% NaCl in water phase).",
+                difficulty = "MEDIUM", learningObjective = "Apply water activity thresholds to control foodborne pathogenic sporeformers."
+            ),
+            makeQ(
+                id = "diag_food_4", domain = d, subdomain = sub,
+                topic = "Modified Atmosphere Packaging (MAP)",
+                questionText = "In Modified Atmosphere Packaging (MAP) of fresh bakery and snack foods, what primary gas is introduced to inhibit aerobic mold growth?",
+                options = listOf("Carbon dioxide (CO2)", "Ethylene (C2H4)", "Pure Oxygen (O2)", "Hydrogen (H2)"),
+                correctIndex = 0,
+                explanation = "Carbon dioxide acts as an antimicrobial gas that dissolves into moisture as carbonic acid, lowering intracellular pH and suppressing aerobic molds and bacteria.",
+                difficulty = "MEDIUM", learningObjective = "Explain gaseous composition and antimicrobial actions in MAP technology."
+            ),
+            makeQ(
+                id = "diag_food_5", domain = d, subdomain = sub,
+                topic = "HACCP Food Safety Principles",
+                questionText = "Under Codex Alimentarius HACCP guidelines, what is the critical step defined to prevent, eliminate, or reduce a food safety hazard to an acceptable level?",
+                options = listOf("Critical Control Point (CCP)", "Standard Operating Procedure (SOP)", "Good Manufacturing Practice (GMP)", "Corrective Action Log (CAL)"),
+                correctIndex = 0,
+                explanation = "A Critical Control Point (CCP) is a specific operational step where control can be applied to prevent or eliminate a hazard or reduce it to an acceptable level.",
+                difficulty = "MEDIUM", learningObjective = "Define and apply HACCP principles in food manufacturing."
+            ),
+            makeQ(
+                id = "diag_food_6", domain = d, subdomain = sub,
+                topic = "Food Freezing & Cryogenic Preservation",
+                questionText = "Why does ultra-rapid cryogenic freezing (e.g. liquid nitrogen) preserve cellular texture in fruits and vegetables better than slow mechanical freezing?",
+                options = listOf("Promotes rapid nucleation forming numerous tiny intracellular ice crystals, preventing cellular membrane puncture", "Converts water directly to vapor without passing through liquid phase", "Increases the osmotic pressure to prevent cell wall expansion", "Enzymatically denatures all polyphenol oxidases permanently"),
+                correctIndex = 0,
+                explanation = "Rapid freezing favors ice crystal nucleation over crystal growth, producing small ice crystals that cause minimal mechanical damage to cell membranes and minimize drip loss upon thawing.",
+                difficulty = "MEDIUM", learningObjective = "Compare ice crystal morphology and cell integrity between fast and slow freezing."
+            ),
+            makeQ(
+                id = "diag_food_7", domain = d, subdomain = sub,
+                topic = "Non-Enzymatic Browning: Maillard Reaction",
+                questionText = "Which chemical reactants participate in the initial condensation step of the Maillard browning reaction in food processing?",
+                options = listOf("A reducing sugar (free carbonyl group) and an amino acid (free amino group)", "A triglyceride ester and a phenolic antioxidant", "Starch amylose and water at gelatinization temperature", "Chlorophyll and magnesium ions under acidic conditions"),
+                correctIndex = 0,
+                explanation = "The Maillard reaction begins with condensation between the electrophilic carbonyl group of a reducing sugar and the nucleophilic amino group of an amino acid or protein, forming a Schiff base.",
+                difficulty = "HARD", learningObjective = "Analyze chemical mechanisms of non-enzymatic browning and flavor development."
+            ),
+            makeQ(
+                id = "diag_food_8", domain = d, subdomain = sub,
+                topic = "Spray Drying & Dairy Processing",
+                questionText = "In spray drying of fruit juices or dairy whey, what physical phenomenon occurs when the product temperature exceeds its glass transition temperature (Tg) during drying?",
+                options = listOf("Product stickiness and wall caking due to transition from amorphous glass to rubbery state", "Immediate crystallization of all sucrose into insoluble crystals", "Complete thermal degradation of all dietary minerals", "Spontaneous foaming causing nozzle blockage"),
+                correctIndex = 0,
+                explanation = "When amorphous food powders exceed their glass transition temperature (Tg), viscosity drops precipitously, leading to a sticky rubbery state that causes cyclone deposits and caking.",
+                difficulty = "HARD", learningObjective = "Evaluate amorphous state physics and glass transition in food dehydration."
+            ),
+            makeQ(
+                id = "diag_food_9", domain = d, subdomain = sub,
+                topic = "Food Rheology & Viscometry",
+                questionText = "Most liquid food emulsions and purees (such as tomato ketchup and salad dressings) exhibit which type of non-Newtonian flow behavior?",
+                options = listOf("Pseudoplastic (Shear-thinning): viscosity decreases with increasing shear rate", "Dilatant (Shear-thickening): viscosity increases with increasing shear rate", "Bingham Plastic: zero deformation below critical shear strain", "Newtonian: viscosity is strictly independent of shear rate"),
+                correctIndex = 0,
+                explanation = "Shear-thinning (pseudoplastic) foods exhibit progressive alignment of polymers and droplet disruption under increasing shear rate, causing apparent viscosity to decrease.",
+                difficulty = "HARD", learningObjective = "Classify fluid food rheological models and shear-thinning characteristics."
+            ),
+            makeQ(
+                id = "diag_food_10", domain = d, subdomain = sub,
+                topic = "Food Fermentation & Starter Cultures",
+                questionText = "In homofermentative lactic acid fermentation (e.g. Streptococcus thermophilus in yogurt), what metabolic pathway produces lactic acid from glucose?",
+                options = listOf("Embden-Meyerhof-Parnas (EMP) glycolytic pathway", "Phosphoketolase heterofermentative pathway", "Entner-Doudoroff oxidative pathway", "Tricarboxylic acid (TCA) cycle"),
+                correctIndex = 0,
+                explanation = "Homofermentative lactic acid bacteria catabolize glucose via the EMP glycolytic pathway, converting 1 mole of glucose into 2 moles of pyruvate, which lactate dehydrogenase reduces to 2 moles of D/L-lactic acid.",
+                difficulty = "HARD", learningObjective = "Differentiate homofermentative from heterofermentative metabolic pathways in food fermentation."
+            )
+        )
     }
 
     private fun generateFinanceQuestions(profile: LearnerProfile): List<AssessmentQuestion> {
@@ -801,6 +1064,28 @@ class LearnMateAiCoreEngine(
         val sub = profile.subdomain.ifBlank { domain }
 
         val domainTopics = when {
+            domain.contains("biotech", ignoreCase = true) || domain.contains("molecular", ignoreCase = true) -> {
+                listOf(
+                    "Recombinant DNA Technology & Restriction Cloning",
+                    "PCR Amplification & Gel Electrophoresis",
+                    "CRISPR-Cas9 Targeted Genome Editing",
+                    "Plasmids & Recombinant Protein Expression",
+                    "Bioreactor Operations & Fermentation Kinetics",
+                    "Enzyme Kinetics & Downstream Chromatography",
+                    "Advanced Biotechnology & Molecular Synthesis Capstone"
+                )
+            }
+            domain.contains("food", ignoreCase = true) -> {
+                listOf(
+                    "Thermal Processing & Pasteurization (D & z Values)",
+                    "Water Activity (aw) Control & Microbial Stability",
+                    "HACCP Food Safety Principles & Critical Limits",
+                    "Modified Atmosphere Packaging & Cryogenic Freezing",
+                    "Non-Enzymatic Browning & Maillard Reaction Chemistry",
+                    "Food Rheology, Spray Drying & Emulsion Processing",
+                    "Comprehensive Food Technology Mastery Capstone"
+                )
+            }
             domain.contains("finance", ignoreCase = true) || domain.contains("mba", ignoreCase = true) -> {
                 listOf(
                     "Time Value of Money & Valuation",
@@ -823,18 +1108,7 @@ class LearnMateAiCoreEngine(
                     "System-on-Chip (SoC) Integration & Physical Design"
                 )
             }
-            domain.contains("science", ignoreCase = true) -> {
-                listOf(
-                    "Newtonian Mechanics & Force Equilibrium",
-                    "Chemical Reactions, Bonding & Stoichiometry",
-                    "Optics, Wave Propagation & Refraction",
-                    "Thermodynamics & Energy Conservation",
-                    "Cellular Physiology & Molecular Genetics",
-                    "Electromagnetism & Induced EMF",
-                    "Advanced Scientific Synthesis Capstone"
-                )
-            }
-            domain.contains("computer", ignoreCase = true) || domain.contains("software", ignoreCase = true) -> {
+            domain.contains("computer", ignoreCase = true) || domain.contains("software", ignoreCase = true) || domain.contains("ai", ignoreCase = true) || sub.contains("algorithm", ignoreCase = true) -> {
                 listOf(
                     "Core Data Structures: Arrays, Linked Lists & Trees",
                     "Algorithmic Complexity & O(n log n) Sorting",
@@ -843,6 +1117,17 @@ class LearnMateAiCoreEngine(
                     "Operating Systems: Concurrency & Virtual Memory",
                     "Database Concurrency & Distributed Systems (CAP)",
                     "Full-Stack Software Architecture Capstone"
+                )
+            }
+            (domain.contains("science", ignoreCase = true) || domain.contains("school", ignoreCase = true) || domain.contains("physics", ignoreCase = true) || domain.contains("chemistry", ignoreCase = true) || domain.contains("secondary", ignoreCase = true)) && !domain.contains("computer", ignoreCase = true) && !domain.contains("data", ignoreCase = true) -> {
+                listOf(
+                    "Newtonian Mechanics & Force Equilibrium",
+                    "Chemical Reactions, Bonding & Stoichiometry",
+                    "Optics, Wave Propagation & Refraction",
+                    "Thermodynamics & Energy Conservation",
+                    "Cellular Physiology & Molecular Genetics",
+                    "Electromagnetism & Induced EMF",
+                    "Advanced Scientific Synthesis Capstone"
                 )
             }
             else -> {
@@ -889,17 +1174,16 @@ class LearnMateAiCoreEngine(
         }
 
         val ctx = com.learnmate.ai.domain.LearnerContext.fromProfile(profile)
-        val isModelReady = (llamaEngine.runtimeState.value == ModelRuntimeState.READY || llamaEngine.runtimeState.value == ModelRuntimeState.MODEL_LOADED)
         val prov = com.learnmate.ai.domain.provenance.AiOperationProvenance(
             operationId = "op_roadmap_${UUID.randomUUID()}",
             learnerId = profile.userId,
             trackId = ctx.activeTrackId,
             profileFingerprint = ctx.profileFingerprint,
             operationName = "PERSONALIZED_ROADMAP_SYNTHESIS",
-            isRealInferenceExecuted = isModelReady,
-            isDeterministicFallbackUsed = !isModelReady,
-            fallbackReason = if (isModelReady) null else "On-device model not in active memory; synthesized via deterministic curricular DAG.",
-            validationStatus = if (isModelReady) "AI_VALIDATED" else "DETERMINISTIC_FALLBACK"
+            isRealInferenceExecuted = false,
+            isDeterministicFallbackUsed = true,
+            fallbackReason = "Synchronous baseline synthesis executed; use synthesizePersonalizedRoadmapAsync for active on-device Llama inference.",
+            validationStatus = "DETERMINISTIC_FALLBACK"
         )
 
         return PersonalisedRoadmap(
@@ -979,9 +1263,10 @@ class LearnMateAiCoreEngine(
             trackId = context.activeTrackId,
             profileFingerprint = context.profileFingerprint,
             operationName = "DIAGNOSTIC_RESULT_INTERPRETATION",
-            isRealInferenceExecuted = true,
-            isDeterministicFallbackUsed = false,
-            validationStatus = "AI_VALIDATED"
+            isRealInferenceExecuted = false,
+            isDeterministicFallbackUsed = true,
+            fallbackReason = "Synchronous deterministic evaluation executed; use interpretSkillGaps for active on-device Llama inference.",
+            validationStatus = "DETERMINISTIC_EVALUATED"
         )
 
         return SkillGapReport(
@@ -1040,9 +1325,10 @@ class LearnMateAiCoreEngine(
             trackId = context.activeTrackId,
             profileFingerprint = context.profileFingerprint,
             operationName = "STUDY_PLAN_RECOMMENDATION",
-            isRealInferenceExecuted = true,
-            isDeterministicFallbackUsed = false,
-            validationStatus = "AI_VALIDATED"
+            isRealInferenceExecuted = false,
+            isDeterministicFallbackUsed = true,
+            fallbackReason = "Synchronous deterministic study plan generated; use recommendDailyStudyPlan for active on-device Llama inference.",
+            validationStatus = "DETERMINISTIC_SCHEDULED"
         )
 
         for ((stepIndex, step) in roadmap.steps.withIndex()) {
@@ -1068,6 +1354,36 @@ class LearnMateAiCoreEngine(
             )
         }
         return tasks
+    }
+
+    suspend fun interpretSkillGaps(
+        profile: LearnerProfile,
+        questions: List<AssessmentQuestion>,
+        answers: Map<String, Int>,
+        trackId: String = "track_${profile.userId}_default",
+        onLiveToken: ((String) -> Unit)? = null
+    ): SkillGapReport {
+        return aiOrchestrator.interpretSkillGaps(profile, questions, answers, trackId, onLiveToken)
+    }
+
+    suspend fun synthesizePersonalizedRoadmapAsync(
+        profile: LearnerProfile,
+        report: SkillGapReport? = null,
+        previousRoadmap: PersonalisedRoadmap? = null,
+        trackId: String = "track_${profile.userId}_default",
+        onLiveToken: ((String) -> Unit)? = null
+    ): PersonalisedRoadmap {
+        return aiOrchestrator.synthesizePersonalizedRoadmap(profile, report, previousRoadmap, trackId, onLiveToken)
+    }
+
+    suspend fun recommendDailyStudyPlan(
+        context: com.learnmate.ai.domain.LearnerContext,
+        roadmap: PersonalisedRoadmap,
+        activeSrsQueue: List<com.learnmate.ai.domain.repetition.SpacedRepetitionItem> = emptyList(),
+        trackId: String = context.activeTrackId,
+        onLiveToken: ((String) -> Unit)? = null
+    ): List<StudyTask> {
+        return aiOrchestrator.recommendDailyStudyPlan(context, roadmap, activeSrsQueue, trackId, onLiveToken)
     }
 }
 

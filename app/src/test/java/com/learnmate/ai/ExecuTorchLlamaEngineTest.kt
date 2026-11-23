@@ -8,6 +8,7 @@ import com.learnmate.ai.ai.PromptBudgeter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -183,6 +184,97 @@ class ExecuTorchLlamaEngineTest {
         val text = res.getOrNull()!!.generatedText
         assertEquals("Concept explained.", text)
         assertFalse(text.contains("extra junk"))
+    }
+
+    @Test
+    fun testExecuTorchLlamaEngine_generatesUpTo1000TokensWithAccurateMetrics() = runBlocking {
+        // Emit 500 tokens
+        val tokens500 = (1..500).map { "tok$it " }
+        val fakeBridge = FakeLlmBridge(generateDelayMs = 0L, tokensToEmit = tokens500)
+        val engine = ExecuTorchLlamaEngine(assetManager, fakeBridge)
+
+        engine.loadModel("dummy/path.pte", "dummy/tok.model")
+
+        val streamedDeltas = mutableListOf<String>()
+        val res = engine.generate("Explain VLSI design flow", maxNewTokens = 1000) { _, delta ->
+            streamedDeltas.add(delta)
+        }
+
+        assertTrue(res.isSuccess)
+        val metrics = res.getOrNull()!!
+        assertEquals(500, metrics.tokenCount)
+        assertEquals(500, streamedDeltas.size)
+        assertEquals(1000, metrics.allowedOutputTokens)
+        assertTrue(metrics.totalElapsedMs > 0)
+        assertTrue(metrics.ttftMs > 0)
+        assertTrue(metrics.tokensPerSecond > 0.0)
+    }
+
+    @Test
+    fun testExecuTorchLlamaEngine_stopsAtCappedOutputTokensWhenModelOverEmits() = runBlocking {
+        // Emit 300 tokens when budget is only 200
+        val tokens300 = (1..300).map { "w$it " }
+        val fakeBridge = FakeLlmBridge(generateDelayMs = 0L, tokensToEmit = tokens300)
+        val engine = ExecuTorchLlamaEngine(assetManager, fakeBridge)
+
+        engine.loadModel("dummy/path.pte", "dummy/tok.model")
+
+        val streamedDeltas = mutableListOf<String>()
+        val res = engine.generate("Explain CMOS", maxNewTokens = 200) { _, delta ->
+            streamedDeltas.add(delta)
+        }
+
+        assertTrue(res.isSuccess)
+        val metrics = res.getOrNull()!!
+        // Engine callback enforces hard ceiling at cappedOutputTokens
+        assertEquals(200, metrics.tokenCount)
+        assertEquals(200, streamedDeltas.size)
+        assertEquals(200, metrics.allowedOutputTokens)
+        assertTrue("Bridge stop() should have been called on cap reach", fakeBridge.stopCallCount >= 1)
+    }
+
+    @Test
+    fun testExecuTorchLlamaEngine_cancellationDuringLargeGeneration() = runBlocking {
+        val countLatch = java.util.concurrent.CountDownLatch(20)
+        val fakeBridge = object : ExecuTorchLlamaEngine.NativeLlmBridge {
+            val stopCalled = java.util.concurrent.atomic.AtomicBoolean(false)
+            override fun createAndLoadModule(modelPath: String, tokenizerPath: String, temperature: Float): Any = "Module"
+            override fun generate(
+                moduleInstance: Any,
+                prompt: String,
+                maxNewTokens: Int,
+                onToken: (String) -> Unit,
+                onStats: (Float) -> Unit
+            ): Int {
+                for (i in 1..1000) {
+                    if (stopCalled.get()) break
+                    onToken("word$i ")
+                    countLatch.countDown()
+                    Thread.sleep(5)
+                }
+                return 0
+            }
+            override fun stop(moduleInstance: Any) {
+                stopCalled.set(true)
+            }
+        }
+
+        val engine = ExecuTorchLlamaEngine(assetManager, fakeBridge)
+        engine.loadModel("dummy/path.pte", "dummy/tok.model")
+
+        val genJob = launch(Dispatchers.Default) {
+            engine.generate("Explain pipeline", maxNewTokens = 1000) { _, _ -> }
+        }
+
+        // Wait until at least 20 tokens emitted
+        countLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        val activeOp = engine.activeOperationId
+        if (activeOp != null) {
+            val cancelRes = engine.stop(activeOp)
+            assertEquals(ExecuTorchLlamaEngine.CancellationResult.CANCEL_ACCEPTED_ACTIVE, cancelRes)
+        }
+        genJob.join()
+        assertTrue(fakeBridge.stopCalled.get())
     }
 }
 

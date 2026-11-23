@@ -290,6 +290,8 @@ data class AssignmentInstance(
     val objectiveMapping: Map<String, String> = emptyMap(),
     val persistedAnswers: Map<String, Int> = emptyMap(),
     val difficultyBand: String = "STANDARD",
+    val isAiGenerated: Boolean = false,
+    val provenance: com.learnmate.ai.domain.provenance.AiOperationProvenance? = null,
     val createdAtEpochMs: Long = System.currentTimeMillis()
 )
 

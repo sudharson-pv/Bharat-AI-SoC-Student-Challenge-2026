@@ -13,23 +13,27 @@ package com.learnmate.ai.ai
  */
 object ExactPromptBudgeter {
 
-    const val MAX_SEQ_LENGTH = ActiveModelManifest.MAX_SEQ_LENGTH // 512
-    const val MAX_OUTPUT_HEADROOM = ActiveModelManifest.MAX_NEW_TOKENS // 144
-    const val MAX_PREFILL_CEILING = ActiveModelManifest.MAX_PREFILL_TOKENS // 368
-    const val STRUCTURAL_OVERHEAD_TOKENS = ActiveModelManifest.STRUCTURAL_OVERHEAD_TOKENS // 15
-    const val MAX_RAW_CONTENT_BUDGET = ActiveModelManifest.MAX_RAW_CONTENT_TOKENS // 353
+    const val MAX_SEQ_LENGTH = 512
+    const val MAX_OUTPUT_HEADROOM = 144
+    const val MAX_PREFILL_CEILING = 368
+    const val STRUCTURAL_OVERHEAD_TOKENS = 15
+    const val MAX_RAW_CONTENT_BUDGET = 353
 
     const val MAX_SYSTEM_TOKENS = 45
     const val MAX_USER_QUERY_TOKENS = 128
+
+    const val BUDGET_SKILL_GAP_OUTPUT = 110
+    const val BUDGET_ROADMAP_OUTPUT = 125
+    const val BUDGET_STUDY_PLAN_OUTPUT = 105
 
     data class BudgetPlan(
         val formattedPrompt: String,
         val exactPrefillTokens: Int,
         val allowedOutputTokens: Int,
-        val effectiveSeqLen: Int,
-        val systemPromptTokens: Int,
-        val contextTokens: Int,
-        val queryTokens: Int
+        val effectiveSeqLen: Int = exactPrefillTokens + allowedOutputTokens,
+        val systemPromptTokens: Int = 0,
+        val contextTokens: Int = 0,
+        val queryTokens: Int = 0
     )
 
     /**
@@ -50,12 +54,14 @@ object ExactPromptBudgeter {
      * @param curriculumContext Verified curriculum knowledge node. MUST NOT be null or blank.
      * @param userQuery Learner query.
      * @param tokenizer Initialized Llama3TikTokenAdapter.
+     * @param outputTokenBudget Specific generation budget (<= 144 tokens).
      */
     fun planPrompt(
         systemPrompt: String,
         curriculumContext: String?,
         userQuery: String,
-        tokenizer: Llama3TikTokenAdapter
+        tokenizer: Llama3TikTokenAdapter,
+        outputTokenBudget: Int = MAX_OUTPUT_HEADROOM
     ): BudgetPlan {
         // Invariant 1: Require valid verified curriculum context (fail closed)
         if (curriculumContext.isNullOrBlank()) {
@@ -76,10 +82,13 @@ object ExactPromptBudgeter {
         var formatted = assembleFullPrompt(safeSys, safeContext, safeQuery)
         var exactTokens = tokenizer.encode(formatted).size
 
-        // Invariant 4: Truncate context if total prefill exceeds 368 tokens
-        if (exactTokens > MAX_PREFILL_CEILING) {
+        val targetOutput = outputTokenBudget.coerceIn(1, MAX_OUTPUT_HEADROOM)
+        val maxAllowedPrefill = minOf(MAX_PREFILL_CEILING, MAX_SEQ_LENGTH - targetOutput)
+
+        // Invariant 4: Truncate context if total prefill exceeds ceiling or leaves insufficient output space
+        if (exactTokens > maxAllowedPrefill) {
             val baseOverhead = tokenizer.encode(assembleFullPrompt(safeSys, "", safeQuery)).size
-            val allowedContextTokens = (MAX_PREFILL_CEILING - baseOverhead).coerceAtLeast(0)
+            val allowedContextTokens = (maxAllowedPrefill - baseOverhead).coerceAtLeast(0)
 
             val rawCtxTokens = tokenizer.encode(safeContext)
             var sliceLen = allowedContextTokens.coerceAtMost(rawCtxTokens.size)
@@ -89,7 +98,7 @@ object ExactPromptBudgeter {
                 safeContext = tokenizer.decode(candidateTokens)
                 formatted = assembleFullPrompt(safeSys, safeContext, safeQuery)
                 exactTokens = tokenizer.encode(formatted).size
-                if (exactTokens <= MAX_PREFILL_CEILING || sliceLen == 0) {
+                if (exactTokens <= maxAllowedPrefill || sliceLen == 0) {
                     break
                 }
                 sliceLen--
@@ -97,13 +106,13 @@ object ExactPromptBudgeter {
         }
 
         // Final sanity bounds
-        if (exactTokens > MAX_PREFILL_CEILING) {
+        if (exactTokens > maxAllowedPrefill) {
             throw IllegalStateException(
-                "Critical budgeting failure: Prefill tokens ($exactTokens) exceeds ceiling ($MAX_PREFILL_CEILING)"
+                "Critical budgeting failure: Prefill tokens ($exactTokens) exceeds ceiling ($maxAllowedPrefill)"
             )
         }
 
-        val allowedOutput = MAX_OUTPUT_HEADROOM
+        val allowedOutput = targetOutput
         // Invariant 5: effectiveSeqLen for ExecuTorch runner (prompt + maxNewTokens <= 512)
         val effectiveSeqLen = (exactTokens + allowedOutput).coerceAtMost(MAX_SEQ_LENGTH)
 
