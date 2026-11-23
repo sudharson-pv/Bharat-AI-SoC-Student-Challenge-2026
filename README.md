@@ -155,10 +155,12 @@ The output APK will be generated at:
 
 ## 📦 Verified Release Artifact
 
-The official competition submission release artifact:
+The official competition submission release artifact is available in the repository `apk/` directory and as a GitHub Release:
 
-* **File:** `learnmate-ai-final.apk`
-* **Size:** 61,568,620 bytes (58.72 MB)
+* **Repository Location:** [`apk/learnmate-ai-final.apk`](apk/learnmate-ai-final.apk)
+* **GitHub Release Asset:** [Download v1.0.0 APK](https://github.com/sudharson-pv/Bharat-AI-SoC-Student-Challenge-2026/releases/download/v1.0.0/learnmate-ai-final.apk)
+* **Checksum Manifest:** [`apk/SHA256SUMS.txt`](apk/SHA256SUMS.txt)
+* **File Size:** 61,568,620 bytes (58.72 MB)
 * **SHA-256:** `F1830F3161F8DCDF3DAFE2A7664195987FD66BE2B92335FF9EFD7D46897C4AB4`
 * **Signer:** `CN=LearnMate AI Release, OU=Mobile Engineering, O=LearnMate AI, L=Bangalore, ST=Karnataka, C=IN`
 * **Signer SHA-1:** `0A:B7:DD:30:A8:90:42:C2:CF:6D:AD:EF:1E:BA:41:77:56:71:B9:AD`
@@ -177,11 +179,15 @@ The official competition submission release artifact:
 
 ## 📖 Key Documentation & Audit Reports
 
-* [LEARNMATE_AI_FOCUS_AREA_PERSONALIZATION_VALIDATION.md](LEARNMATE_AI_FOCUS_AREA_PERSONALIZATION_VALIDATION.md) — Empirical validation of the Focus-Area Personalization Engine across Profiles A to F.
-* [LEARNMATE_AI_FINAL_BUG_REPORT.md](LEARNMATE_AI_FINAL_BUG_REPORT.md) — Comprehensive resolution audit covering 6 major defects and UI accessibility.
-* [LEARNMATE_AI_REMEDIATION_CHANGELOG.md](LEARNMATE_AI_REMEDIATION_CHANGELOG.md) — Exhaustive code diff log across all modified modules.
-* [GATE_6_17_1000_TOKEN_VERIFICATION_REPORT.md](GATE_6_17_1000_TOKEN_VERIFICATION_REPORT.md) — 1000-token headroom policy and ExecuTorch native bridge verification.
-* [LEARNMATE_AI_PROFILE_PERSISTENCE_BUG_REPORT.md](LEARNMATE_AI_PROFILE_PERSISTENCE_BUG_REPORT.md) — Room SQLite persistence and first-launch navigation audit.
+All 44 technical audit reports, Gate qualification certificates, and architecture specs are organized in [`docs/reports/`](docs/reports/):
+
+* [LEARNMATE_AI_GITHUB_SUBMISSION_REPORT.md](docs/reports/LEARNMATE_AI_GITHUB_SUBMISSION_REPORT.md) — Official competition submission report and release attestation.
+* [LEARNMATE_AI_FOCUS_AREA_PERSONALIZATION_VALIDATION.md](docs/reports/LEARNMATE_AI_FOCUS_AREA_PERSONALIZATION_VALIDATION.md) — Empirical validation of the Focus-Area Personalization Engine across Profiles A to F.
+* [LEARNMATE_AI_FINAL_BUG_REPORT.md](docs/reports/LEARNMATE_AI_FINAL_BUG_REPORT.md) — Comprehensive resolution audit covering 6 major defects and UI accessibility.
+* [LEARNMATE_AI_REMEDIATION_CHANGELOG.md](docs/reports/LEARNMATE_AI_REMEDIATION_CHANGELOG.md) — Exhaustive code diff log across all modified modules.
+* [GATE_6_17_1000_TOKEN_VERIFICATION_REPORT.md](docs/reports/GATE_6_17_1000_TOKEN_VERIFICATION_REPORT.md) — 1000-token headroom policy and ExecuTorch native bridge verification.
+* [LEARNMATE_AI_PROFILE_PERSISTENCE_BUG_REPORT.md](docs/reports/LEARNMATE_AI_PROFILE_PERSISTENCE_BUG_REPORT.md) — Room SQLite persistence and first-launch navigation audit.
+* [All 44 Gate & Technical Reports in `docs/reports/`](docs/reports/)
 
 ---
 
