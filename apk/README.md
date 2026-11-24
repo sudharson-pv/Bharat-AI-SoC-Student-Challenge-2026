@@ -7,22 +7,22 @@ This directory contains the official verified production release APK for LearnMa
 
 ## 📦 Package Specifications
 
-* **File Name:** `learnmate-ai-final.apk`
-* **File Size:** 61,568,620 bytes (58.72 MB)
+* **File Name:** `learnmate-ai.apk`
+* **File Size:** 80,314,393 bytes (76.59 MB)
 * **Application ID:** `com.learnmate.ai`
 * **Version Name / Code:** `1.0.0` / `1`
 * **Min SDK / Compile SDK:** Android 9.0 (API 28) / Android 15 (API 35)
-* **Build Variant:** Release (`assembleRelease`, non-debuggable, optimized)
+* **Target Architecture:** ARM64-v8a / 64-bit Android Devices
 
 ---
 
 ## 🔒 Cryptographic Hashes & Signatures
 
-* **SHA-256 Digest:** `F1830F3161F8DCDF3DAFE2A7664195987FD66BE2B92335FF9EFD7D46897C4AB4`
-* **Production Signer DN:** `CN=LearnMate AI Release, OU=Mobile Engineering, O=LearnMate AI, L=Bangalore, ST=Karnataka, C=IN`
-* **Signer Certificate SHA-1:** `0A:B7:DD:30:A8:90:42:C2:CF:6D:AD:EF:1E:BA:41:77:56:71:B9:AD`
-* **Signer Certificate SHA-256:** `A3:58:3B:8D:04:85:FD:55:1D:CE:9A:A5:0C:8E:48:70:B7:0C:EE:31:D6:B9:5D:1F:63:DD:C3:8C:E5:49:66:22`
-* **Signature Scheme:** APK Signature Scheme v3 (Verified via Android SDK `apksigner`)
+* **SHA-256 Digest:** `B84E44224E4C2EF46B05AC78DD9B2B8193129999DC19618FF2BC12530B4D7B08`
+* **Signature Scheme:** APK Signature Scheme v2 (Verified via Android SDK `apksigner`)
+* **Signer DN:** `CN=Android Debug, O=Android, C=US`
+* **Signer Certificate SHA-1:** `E2:83:37:E4:50:FD:A0:24:58:B7:C2:94:2C:67:5B:62:44:68:45:CC`
+* **Signer Certificate SHA-256:** `6E:57:DF:91:D7:C5:DB:94:70:22:70:6B:E3:3D:79:9D:0E:9F:5D:EB:23:A5:52:B2:81:E3:CC:FF:B4:2E:47:85`
 
 ---
 
@@ -35,9 +35,9 @@ sha256sum -c SHA256SUMS.txt
 
 ### Windows (PowerShell)
 ```powershell
-Get-FileHash -Algorithm SHA256 learnmate-ai-final.apk
+Get-FileHash -Algorithm SHA256 learnmate-ai.apk
 ```
-*Expected Output:* `F1830F3161F8DCDF3DAFE2A7664195987FD66BE2B92335FF9EFD7D46897C4AB4`
+*Expected Output:* `B84E44224E4C2EF46B05AC78DD9B2B8193129999DC19618FF2BC12530B4D7B08`
 
 ---
 
@@ -45,5 +45,5 @@ Get-FileHash -Algorithm SHA256 learnmate-ai-final.apk
 
 Connect your Android device (Android 9.0+ / API 28+, recommended Android 15 on ARM64):
 ```bash
-adb install -r learnmate-ai-final.apk
+adb install -r learnmate-ai.apk
 ```

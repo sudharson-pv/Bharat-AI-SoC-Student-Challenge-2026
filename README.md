@@ -157,11 +157,11 @@ The output APK will be generated at:
 
 The official competition submission release artifact is available in the repository `apk/` directory and as a GitHub Release:
 
-* **Repository Location:** [`apk/learnmate-ai-final.apk`](apk/learnmate-ai-final.apk)
-* **GitHub Release Asset:** [Download v1.0.0 APK](https://github.com/sudharson-pv/Bharat-AI-SoC-Student-Challenge-2026/releases/download/v1.0.0/learnmate-ai-final.apk)
+* **Repository Location:** [`apk/learnmate-ai.apk`](apk/learnmate-ai.apk)
+* **GitHub Release Asset:** [Download v1.0.0 APK](https://github.com/sudharson-pv/Bharat-AI-SoC-Student-Challenge-2026/releases/download/v1.0.0/learnmate-ai.apk)
 * **Checksum Manifest:** [`apk/SHA256SUMS.txt`](apk/SHA256SUMS.txt)
-* **File Size:** 61,568,620 bytes (58.72 MB)
-* **SHA-256:** `F1830F3161F8DCDF3DAFE2A7664195987FD66BE2B92335FF9EFD7D46897C4AB4`
+* **File Size:** 80,314,393 bytes (76.59 MB)
+* **SHA-256:** `B84E44224E4C2EF46B05AC78DD9B2B8193129999DC19618FF2BC12530B4D7B08`
 * **Signer:** `CN=LearnMate AI Release, OU=Mobile Engineering, O=LearnMate AI, L=Bangalore, ST=Karnataka, C=IN`
 * **Signer SHA-1:** `0A:B7:DD:30:A8:90:42:C2:CF:6D:AD:EF:1E:BA:41:77:56:71:B9:AD`
 * **Signer SHA-256:** `A3:58:3B:8D:04:85:FD:55:1D:CE:9A:A5:0C:8E:48:70:B7:0C:EE:31:D6:B9:5D:1F:63:DD:C3:8C:E5:49:66:22`
